@@ -45,11 +45,11 @@ def scan_system_icons(theme_name: str = "Adwaita") -> dict[str, set[str]]:
                 continue
 
             for icon_file in context_dir.glob("**/*.png"):
-                icon_names = icon_file.stem
-                icon_db[context].add(icon_names)
+                icon_name = icon_file.stem
+                icon_db[context].add(icon_name)
 
             for icon_file in context_dir.glob("**/*.svg"):
-                icon_names = icon_file.stem
-                icon_db[context].add(icon_names)
+                icon_name = icon_file.stem
+                icon_db[context].add(icon_name)
 
     return icon_db

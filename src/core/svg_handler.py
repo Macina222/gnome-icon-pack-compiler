@@ -31,6 +31,8 @@ def validate_svg(filepath: str | Path) -> Path:
             f"Główny znacznik pliku {path.name} to '<{tag_name}>', oczekiwano '<svg>'."
         )
 
+    return path
+
 def add_icon_to_theme(
     project_dir: str | Path,
     context: str,
@@ -48,7 +50,7 @@ def add_icon_to_theme(
     target_dir.mkdir(parents=True, exist_ok=True)
 
     clean_name = icon_name.strip().lower()
-    if clean_name.lower().endswith(".svg"):
+    if clean_name.endswith(".svg"):
         clean_name = clean_name[:-4]
 
     dest_path = target_dir / f"{clean_name}.svg"
@@ -68,7 +70,7 @@ def remove_icon_from_theme(
         )
 
     clean_name = icon_name.strip().lower()
-    if clean_name.lower().endswith(".svg"):
+    if clean_name.endswith(".svg"):
         clean_name = clean_name[:-4]
 
     target = Path(project_dir) / "scalable" / context / f"{clean_name}.svg"
