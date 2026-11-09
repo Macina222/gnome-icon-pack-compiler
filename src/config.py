@@ -29,4 +29,6 @@ CONTEXTS: dict[str, str] = {
     "mimetypes": "MimeTypes",
     "places": "Places",
     "status": "Status",
-}
+    "emblems": "Emblems",
+    "ui": "UI",
+    }

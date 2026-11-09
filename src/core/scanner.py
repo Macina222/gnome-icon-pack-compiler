@@ -15,7 +15,7 @@ def scan_installed_apps() -> set[str]:
 
         for file in dir.glob("**/*.desktop"):
             try:
-                with open(file, "r", encoding="utf_8") as f:
+                with open(file, "r", encoding="utf-8") as f:
                     for line in f:
                         if line.startswith("Icon="):
                             icon_name = line.split("=")[1].strip()
@@ -35,21 +35,18 @@ def scan_system_icons(theme_name: str = "Adwaita") -> dict[str, set[str]]:
     if not theme_dir.exists():
         return icon_db
 
-    for dir in theme_dir.iterdir():
-        if not dir.is_dir():
-            continue
+    for context in icon_db.keys():
+        # Znak '*' zastępuje katalog z rozmiarem (np. 'scalable', '48x48')
+        # Znak '**' zagląda do wszystkich ewentualnych podkatalogów wewnątrz kontekstu
 
-        for context in icon_db.keys():
-            context_dir = dir / context
-            if not context_dir.exists():
-                continue
+        for icon_file in theme_dir.glob(f"*/{context}/**/*.png"):
+            icon_db[context].add(icon_file.stem)
 
-            for icon_file in context_dir.glob("**/*.png"):
-                icon_name = icon_file.stem
-                icon_db[context].add(icon_name)
-
-            for icon_file in context_dir.glob("**/*.svg"):
-                icon_name = icon_file.stem
-                icon_db[context].add(icon_name)
+        for icon_file in theme_dir.glob(f"*/{context}/**/*.svg"):
+            icon_db[context].add(icon_file.stem)
 
     return icon_db
+
+if __name__ == "__main__":
+    print(scan_installed_apps())
+    print(scan_system_icons())
