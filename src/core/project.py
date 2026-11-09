@@ -1,7 +1,7 @@
 import configparser
 import shutil
 from pathlib import Path
-from src.config import CONTEXTS, DEFAULT_ICONS_DIR
+import src.config
 
 class ProjectNotFoundError(FileNotFoundError):
     pass
@@ -11,7 +11,7 @@ class InvalidThemeError(ValueError):
 
 def create_new_theme_project(
         name: str,
-        output_dir: str | Path = DEFAULT_ICONS_DIR,
+        output_dir: str | Path = src.config.DEFAULT_ICONS_DIR,
         comments: str = "User made Icon Theme, made using GIPC by Macina222",
         inherits: str = "hicolor,Adwaita"
 
@@ -22,7 +22,7 @@ def create_new_theme_project(
     theme_dir = base_path / theme_slug
 
     # Tworzenie podkatalogów
-    for context in CONTEXTS:
+    for context in src.config.CONTEXTS:
         (theme_dir / "scalable" / context).mkdir(parents=True, exist_ok=True)
 
     # Tworzenie pliku konfiguracyjnego
@@ -30,7 +30,7 @@ def create_new_theme_project(
     config = configparser.ConfigParser()
     config.optionxform = str
 
-    directories = [f"scalable/{context}" for context in CONTEXTS]
+    directories = [f"scalable/{context}" for context in src.config.CONTEXTS]
     config["Icon Theme"] = {
         "Name": name,
         "Comment": comments,
@@ -38,7 +38,7 @@ def create_new_theme_project(
         "Directories": ",".join(directories),
     }
 
-    for ctx, context_name in CONTEXTS.items():
+    for ctx, context_name in src.config.CONTEXTS.items():
         section_name = f"scalable/{ctx}"
         config[section_name] = {
             "Context": context_name,
@@ -57,7 +57,7 @@ def create_new_theme_project(
 
 def delete_theme_project(
     name: str,
-    base_dir: str | Path = DEFAULT_ICONS_DIR,
+    base_dir: str | Path = src.config.DEFAULT_ICONS_DIR,
     force: bool = False,
 ) -> Path:
     base_path = Path(base_dir).expanduser().resolve()
