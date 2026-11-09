@@ -1,0 +1,78 @@
+# pyproject.toml
+# -------------
+# Nowoczesny plik konfiguracyjny projektu Pythonia (PEP 517 / PEP 518).
+# Zastępuje starsze pliki: setup.py, setup.cfg, MANIFEST.in.
+#
+# Co definiuje:
+#   • Zależności (dependencies) – biblioteki wymagane do działania
+#   • System budowania – setuptools w tym przykładzie
+#   • Metadata projektu – nazwa, wersja, opis, autor
+#   • Opcjonalne zależności (dev) – narzędzia deweloperskie
+#
+# Aby zainstalować w trybie edytowalnym (można edytować kod bez ponownej instalacji):
+#     pip install -e .
+#
+# Aby zbudować dystrybucję (wheel/sdist):
+#     python -m build
+# -------------
+
+[build-system]
+# Wymagane narzędzia do zbudowania pakietu.
+# setuptools >= 61.0 dostarcza wsparcia dla nowszych funkcji pyproject.toml.
+# wheel pozwala generować zarówno archive (sdist), jak i gotowe pakiety (wheel).
+requires = ["setuptools>=61.0", "wheel"]
+# Punkt wejścia dla budowniczego (build backend). "setuptools.build_meta"
+# to standardowy backend obsługiwany przez większość narzędzi CI i pipa.
+build-backend = "setuptools.build_meta"
+
+[project]
+# === Identyfikator projektu ===
+name = "gnome-icon-pack-compiler"
+#wersja semver: MAJOR.MINOR.PATCH. Zmieniaj przy każdej nowej release.
+version = "0.1.0"
+# Krótki opis pojawiający się w pip, PyPI itp.
+description = "Pakiet do pakowania i zarządzania motywami ikon systemowych GNOME"
+# Ścieżka do pliku README (jeśli istnieje; zostaw puste, jeśli nie ma).
+readme = "README.md"
+# Wymagana wersja Pythona
+requires-python = ">=3.10"
+
+# === Zależności ===
+# Biblioteki wbudowane w Pythona – nie wymagają osobnej instalacji.
+# (shutil i xml.etree.ElementTree są dostępne "out-of-the-box").
+dependencies = [
+]
+
+# === Klasyfikatory (classifiers) ===
+# Pomagają w wyszukiwaniu na PyPI. Poniższe są domyślne, można rozszerzyć.
+# UWAGA: ta sekcja MUSI być przed [project.optional-dependencies], bo w TOML
+# nowe klucze po podsekcji trafiają do tej podsekcji, a nie do [project].
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+]
+
+# === Opcjonalne zależności deweloperskie ===
+# Grupa "dev" można zainstalować poleceniem: pip install "gnome-icon-pack-compiler[dev]"
+[project.optional-dependencies]
+dev = [
+    # Narzędzia formatujące i weryfikacji kodu
+    "black>=24.0",
+    "ruff>=0.1.0",
+    # Testy jednostkowe
+    "pytest>=7.0",
+    # Dokumentacja
+    "sphinx>=7.0",
+]
+
+# === Punkty wejścia (entry points) ===
+# Definiuje komendy dostępne po `pip install .` lub `pip install -e .`
+# Format: nazwa_komendy = module:funkcja
+# [project.scripts]
+#   gipc=src.core.project:main
+#
+# Aby dodać punkt wejścia, odkomentuj sekcję poniżej i zdefiniuj funkcję main()
+# w odpowiednim pliku (np. src/core/project.py), która będzie inicjować działanie aplikacji.
+[project.scripts]
+# gipc = "src.core.project:main"

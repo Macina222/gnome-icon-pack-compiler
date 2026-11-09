@@ -31,6 +31,8 @@ def validate_svg(filepath: str | Path) -> Path:
             f"Główny znacznik pliku {path.name} to '<{tag_name}>', oczekiwano '<svg>'."
         )
 
+    # KLUCZOWE: bez tego `add_icon_to_theme` otrzyma None i wywoła TypeError w `shutil.copy2`.
+    # Funkcja deklaruje `-> Path`, więc zawsze zwracamy poprawną ścieżkę po pomyślnym walidacji.
     return path
 
 def add_icon_to_theme(
