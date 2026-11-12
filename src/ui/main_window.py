@@ -1,67 +1,72 @@
 from gi.repository.Gio import file_parse_name
 import sys
 import gi
-from src import __version__, APP_NAME_FULL, APP_AUTHOR, APP_NAME_SHORT, APP_ID
+from src import __version__, APP_NAME_FULL, APP_AUTHOR, APP_ID
+from src.core.icon_database import IconDatabase
+from src.config import CONTEXTS
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio
 
 
 class IconRow(Gtk.ListBoxRow):
-    """Reprezentuje pojedynczy wiersz pliku SVG na liście z podglądem obu ikon."""
+    """Reprezentuje pojedynczy wiersz pliku SVG z wyborem kontekstu i autouzupełnianiem."""
 
-    def __init__(self, filepath: str, suggestions: list[str], *args, **kwargs) -> None:
+    def __init__(self, filepath: str, suggestions_map: dict[str, list[str]], *args, **kwargs) -> None:
         """
         Args:
             filepath: Ścieżka do wczytanego pliku .svg.
-            suggestions: Lista stringów z odpowiedziami ze skanera dla autouzupełniania.
+            suggestions_map: Słownik zawierający listy podpowiedzi dla każdego kontekstu
+                             (np. {'apps': ['firefox', ...], 'status': ['battery', ...]}).
         """
         super().__init__(*args, **kwargs)
         self.filepath = filepath
         self.filename = filepath.split('/')[-1]
+        self.suggestions_map = suggestions_map
 
-        row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=15)
+        row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         row_box.set_margin_top(8)
         row_box.set_margin_bottom(8)
         row_box.set_margin_start(10)
         row_box.set_margin_end(10)
 
-        # 1. MINIATURKA DODAWANEGO PLIKU (Z DYSKU)
+        # 1. MINIATURKA DODAWANEGO PLIKU I NAZWA
         self.input_preview = Gtk.Image.new_from_file(self.filepath)
-        self.input_preview.set_pixel_size(48)  # Sztywny rozmiar ikon
+        self.input_preview.set_pixel_size(48)
         row_box.append(self.input_preview)
 
-        # Nazwa oryginalnego pliku obok miniaturki
         filename_label = Gtk.Label(label=f"<b>{self.filename}</b>", use_markup=True)
         filename_label.set_halign(Gtk.Align.START)
         filename_label.set_width_chars(15)
         filename_label.set_ellipsize(3)
         row_box.append(filename_label)
 
-        # Strzałka wskazująca przepływ
+        # Strzałka
         arrow = Gtk.Image.new_from_icon_name("go-next-symbolic")
         arrow.add_css_class("dim-label")
         row_box.append(arrow)
 
-        # 2. MINIATURKA DOCELOWEJ IKONY Z SYSTEMU
-        # Domyślnie ładujemy "image-missing" dopóki nic nie jest wybrane
+        # 2. MINIATURKA IKONY DOCELOWEJ
         self.target_preview = Gtk.Image.new_from_icon_name("image-missing")
         self.target_preview.set_pixel_size(48)
         row_box.append(self.target_preview)
 
-        # 3. MENU DROPDOWN Z WYSZUKIWANIEM I PODPOWIEDZIAMI
-        string_list = Gtk.StringList.new(suggestions)
+        # 3. WYBÓR KONTEKSTU (Mały DropDown)
+        context_keys = list(self.suggestions_map.keys())
+        self.context_dropdown = Gtk.DropDown(model=Gtk.StringList.new(context_keys))
+        self.context_dropdown.set_valign(Gtk.Align.CENTER)
+        self.context_dropdown.connect("notify::selected-item", self.on_context_changed)
+        row_box.append(self.context_dropdown)
 
-        self.dropdown = Gtk.DropDown(model=string_list)
-        self.dropdown.set_hexpand(True)
-        self.dropdown.set_enable_search(True)
-        self.dropdown.set_valign(Gtk.Align.CENTER)
+        # 4. WYSZUKIWARKA NAZWY (Główny DropDown z autouzupełnianiem)
+        self.name_dropdown = Gtk.DropDown()
+        self.name_dropdown.set_hexpand(True)
+        self.name_dropdown.set_enable_search(True)
+        self.name_dropdown.set_valign(Gtk.Align.CENTER)
+        self.name_dropdown.connect("notify::selected-item", self.on_name_changed)
+        row_box.append(self.name_dropdown)
 
-        # Nasłuchujemy zmiany wybranej pozycji w DropDown, aby odświeżyć miniaturkę
-        self.dropdown.connect("notify::selected-item", self.on_selection_changed)
-        row_box.append(self.dropdown)
-
-        # 4. PRZYCISK USUWANIA
+        # 5. PRZYCISK USUWANIA
         self.btn_remove = Gtk.Button(icon_name="user-trash-symbolic")
         self.btn_remove.add_css_class("destructive-action")
         self.btn_remove.add_css_class("flat")
@@ -70,25 +75,42 @@ class IconRow(Gtk.ListBoxRow):
 
         self.set_child(row_box)
 
-        # Inicjujemy podgląd dla pierwszej podpowiedzi na liście (jeśli istnieje)
-        self.on_selection_changed(self.dropdown, None)
+        # Wymuszenie załadowania pierwszego kontekstu i podpowiedzi podczas startu
+        self.on_context_changed(self.context_dropdown, None)
 
-    def on_selection_changed(self, dropdown: Gtk.DropDown, pspec) -> None:
-        """Odświeża miniaturkę ikony docelowej na podstawie wybranej nazwy."""
+    def on_context_changed(self, dropdown: Gtk.DropDown, pspec) -> None:
+        """Odświeża listę autouzupełniania po wybraniu nowej kategorii (kontekstu)."""
+        selected_item = dropdown.get_selected_item()
+        if not selected_item:
+            return
+
+        context = selected_item.get_string()
+        new_suggestions = self.suggestions_map.get(context, [])
+
+        # Podmiana modelu w drugim DropDown
+        self.name_dropdown.set_model(Gtk.StringList.new(new_suggestions))
+
+        # Ręczne odświeżenie miniaturki, by uniknąć starej ikony z poprzedniego kontekstu
+        self.on_name_changed(self.name_dropdown, None)
+
+    def on_name_changed(self, dropdown: Gtk.DropDown, pspec) -> None:
+        """Odświeża miniaturkę ikony docelowej na podstawie wybranej nazwy z bazy."""
         selected_item = dropdown.get_selected_item()
         if selected_item:
             icon_name = selected_item.get_string()
-            # GTK automatycznie szuka podanej nazwy w aktywnym systemowym motywie ikon
             self.target_preview.set_from_icon_name(icon_name)
         else:
             self.target_preview.set_from_icon_name("image-missing")
 
+    def get_selected_context(self) -> str:
+        """Zwraca wybraną kategorię (np. 'apps')."""
+        item = self.context_dropdown.get_selected_item()
+        return item.get_string() if item else ""
+
     def get_selected_name(self) -> str:
-        """Pobiera ciąg znaków aktualnie wybrany/wpisany przez użytkownika."""
-        selected_item = self.dropdown.get_selected_item()
-        if selected_item:
-            return selected_item.get_string()
-        return ""
+        """Zwraca wybraną nazwę ikony systemowej."""
+        item = self.name_dropdown.get_selected_item()
+        return item.get_string() if item else ""
 
 class MainWindow(Gtk.ApplicationWindow):
     """Klasa głównego okna aplikacji"""
@@ -99,6 +121,13 @@ class MainWindow(Gtk.ApplicationWindow):
         self.set_title(f"{APP_NAME_FULL} - Main Window")
         self.set_default_size(1200, 800)
         self.set_resizable(True)
+
+        print("Rozpoczęcie skanowania dysku w poszukiwaniu ikon")
+        self.icon_db = IconDatabase(fallback_theme="Adwaita")
+        self.icon_db.build_database()
+
+        self.suggestions_map = {ctx: self.icon_db.get_suggestions(ctx) for ctx in CONTEXTS}
+        print("Zakończono ładowanie bazy ikon.")
 
         self._setup_header_bar()
         self._setup_layout()
@@ -237,29 +266,20 @@ class MainWindow(Gtk.ApplicationWindow):
             # Tutaj w przyszłości podepniemy funkcję create_icon_theme_project()
 
     def on_add_svg_clicked(self, button: Gtk.Button) -> None:
-            """Akcja po kliknięciu 'Dodaj SVG'."""
-            print("symulacja dodania nowego svg")
+        """Akcja po kliknięciu 'Dodaj SVG'."""
+        print("Dodaję nowy plik z prawdziwymi systemowymi podpowiedziami...")
 
-            # Przykładowe podpowiedzi ze skanera
-            mock_suggestions = [
-                "firefox",
-                "org.gnome.Nautilus",
-                "org.gnome.Settings",
-                "code",
-                "system-file-manager"
-            ]
+        # Tworzymy wiersz przekazując prawdziwy słownik z IconDatabase
+        new_row = IconRow(
+            filepath="/home/mzych/Obrazy/test_ikony.svg",
+            suggestions_map=self.suggestions_map
+        )
 
-            # Tworzymy nasz nowy wiersz
-            new_row = IconRow(
-                filepath="/home/mzych/Obrazy/test_ikony.svg",
-                suggestions=mock_suggestions
-            )
+        # Obsługa usuwania wiersza po kliknięciu ikony kosza
+        new_row.btn_remove.connect("clicked", lambda btn: self.icons_listbox.remove(new_row))
 
-            # Obsługa usuwania wiersza po kliknięciu ikony kosza
-            new_row.btn_remove.connect("clicked", lambda btn: self.icons_listbox.remove(new_row))
-
-            # Dodajemy wiersz na koniec listy w interfejsie
-            self.icons_listbox.append(new_row)
+        # Dodajemy wiersz na koniec listy w interfejsie
+        self.icons_listbox.append(new_row)
 
 class IconBuilderApp(Gtk.Application):
     """Klasa aplikacji zarządzająca cyklem życia."""

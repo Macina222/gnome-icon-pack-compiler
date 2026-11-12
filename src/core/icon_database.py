@@ -31,6 +31,15 @@ class IconDatabase:
 
         return self._database[context]
 
+    def get_suggestions(self, context: str) -> list[str]:
+        if not self._is_loaded:
+            self.build_database()
+
+        if context not in CONTEXTS:
+            return []
+
+        return self._database[context]
+
     def reload_database(self) -> None:
         self._is_loaded = False
         self.build_database()
