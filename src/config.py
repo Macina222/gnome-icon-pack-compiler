@@ -1,6 +1,7 @@
 """Konfiguracja i stałe dla aplikacji"""
 
 from pathlib import Path
+from src import APP_NAME_SHORT, APP_AUTHOR
 
 # Ścieżki katalogów ikon w systemie
 DEFAULT_ICONS_DIR: Path = Path("~/.local/share/icons").expanduser()
@@ -10,7 +11,7 @@ SYSTEM_ICONS_DIR: Path = Path("/usr/share/icons")
 SUPPORTED_EXTENSIONS: tuple[str, ...] = (".svg",)
 
 # Domyślne wartości konfiguracji motywu
-DEFAULT_COMMENT: str = "User made Icon Theme, generated using GIPC by Macina222"
+DEFAULT_COMMENT: str = f"User made Icon Theme, generated using {APP_NAME_SHORT} by {APP_AUTHOR}"
 DEFAULT_INHERITS: str = "hicolor,Adwaita"
 
 # Wymiary skalowalnych ikon wektorowych
