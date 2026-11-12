@@ -1,5 +1,8 @@
+import logging
 from src.config import CONTEXTS
 from src.core.scanner import scan_installed_apps, scan_system_icons
+
+logger = logging.getLogger(__name__)
 
 class IconDatabase:
     def __init__(self, fallback_theme: str = "Adwaita"):
@@ -8,7 +11,9 @@ class IconDatabase:
         self._is_loaded: bool = False
 
     def build_database(self) -> None:
+        logger.debug(f"build_database_start: fallback={self.fallback_theme}")
         app_icons = scan_installed_apps()
+        logger.debug(f"build_database_apps: found={len(app_icons)}")
         self._database["apps"] = sorted(list(app_icons))
 
         theme_icons = scan_system_icons(self.fallback_theme)
@@ -21,6 +26,7 @@ class IconDatabase:
             self._database[context] = sorted(list(context_set))
 
         self._is_loaded = True
+        logger.debug("build_database_done")
 
     def load_database(self, context: str) -> list[str]:
         if not self._is_loaded:

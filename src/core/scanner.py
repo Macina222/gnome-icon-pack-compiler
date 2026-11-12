@@ -1,7 +1,11 @@
+import logging
 from pathlib import Path
 from src.config import CONTEXTS, SYSTEM_ICONS_DIR
 
+logger = logging.getLogger(__name__)
+
 def scan_installed_apps() -> set[str]:
+    logger.debug("scan_installed_apps_start")
     desktop_dirs = [
         Path("/usr/share/applications/"),
         Path("~/.local/share/applications/").expanduser(),
@@ -11,6 +15,7 @@ def scan_installed_apps() -> set[str]:
 
     for dir in desktop_dirs:
         if not dir.exists():
+            logger.debug(f"scan_installed_apps_dir_not_found: {dir}")
             continue
 
         for file in dir.glob("**/*.desktop"):
@@ -24,15 +29,19 @@ def scan_installed_apps() -> set[str]:
                             break
 
             except (PermissionError, UnicodeDecodeError) as e:
+                logger.warning(f"scan_installed_apps_error: {file} -> {e}")
                 continue
 
+    logger.debug(f"scan_installed_apps_done: found={len(icon_names)}")
     return icon_names
 
 def scan_system_icons(theme_name: str = "Adwaita") -> dict[str, set[str]]:
+    logger.debug(f"scan_system_icons_start: theme={theme_name}")
     theme_dir = SYSTEM_ICONS_DIR / theme_name
     icon_db = {context: set() for context in CONTEXTS if context != "apps"}
 
     if not theme_dir.exists():
+        logger.warning(f"scan_system_icons_theme_not_found: {theme_dir}")
         return icon_db
 
     for context in icon_db.keys():
@@ -45,6 +54,7 @@ def scan_system_icons(theme_name: str = "Adwaita") -> dict[str, set[str]]:
         for icon_file in theme_dir.glob(f"*/{context}/**/*.svg"):
             icon_db[context].add(icon_file.stem)
 
+    logger.debug(f"scan_system_icons_done: theme={theme_name}")
     return icon_db
 
 if __name__ == "__main__":
