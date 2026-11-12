@@ -23,3 +23,4 @@ Projekt jest udostępniany na licencji [MIT](LICENSE).
 
 ## Autor
 Macina222 (Maciej Zych)
+Jestem otwarty na współpracę. Jeśli masz pomysł na funkcję lub usprawnienie projektu, lub chcesz pomóc w rozwoju daj mi znać!
