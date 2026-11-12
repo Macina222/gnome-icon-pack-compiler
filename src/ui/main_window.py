@@ -1,5 +1,6 @@
 import sys
 import gi
+from src import __version__, APP_NAME_FULL, APP_AUTHOR, APP_NAME_SHORT
 
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio
@@ -10,7 +11,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.set_title("GIPC - Gnome Icon Pack Compiler - Main Window")
+        self.set_title(f"{APP_NAME_FULL} - Main Window")
         self.set_default_size(1200, 800)
         self.set_resizable(True)
 
@@ -22,8 +23,13 @@ class MainWindow(Gtk.ApplicationWindow):
         header_bar = Gtk.HeaderBar()
         self.set_titlebar(header_bar)
 
+        self.about_btn = Gtk.Button(icon_name="dialog-information-symbolic")
+        self.about_btn.add_css_class("flat")
+        self.about_btn.connect("clicked", self.on_about_clicked)
+        header_bar.pack_start(self.about_btn)
+
         self.build_btn = Gtk.Button(label="Zbuduj motyw")
-        self.build_btn.add_css_class("suggested action")
+        self.build_btn.add_css_class("suggested-action")
         self.build_btn.connect("clicked", self.on_button_clicked)
         header_bar.pack_end(self.build_btn)
 
@@ -38,6 +44,22 @@ class MainWindow(Gtk.ApplicationWindow):
         # 1. LEWY PANEL (Ustawienia motywu)
         left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
         left_panel.set_size_request(300, -1)  # Stała minimalna szerokość 300px
+
+        # Przyciski zarządzania projektem
+        project_actions_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+
+        self.btn_new_theme = Gtk.Button(label="Nowy motyw")
+        self.btn_new_theme.set_hexpand(True)
+        self.btn_new_theme.connect("clicked", self.on_new_theme_clicked)
+
+        self.btn_load_theme = Gtk.Button(label="Wczytaj motyw")
+        self.btn_load_theme.set_hexpand(True)
+        self.btn_load_theme.connect("clicked", self.on_load_theme_clicked)
+
+        project_actions_box.append(self.btn_new_theme)
+        project_actions_box.append(self.btn_load_theme)
+
+        left_panel.append(project_actions_box)
 
         settings_title = Gtk.Label(label="<b>Ustawienia Projektu</b>", use_markup=True)
         settings_title.set_halign(Gtk.Align.START)
@@ -95,6 +117,33 @@ class MainWindow(Gtk.ApplicationWindow):
         main_box.append(right_panel)
 
         # --- Obsługa zdarzeń ---
+
+    def on_new_theme_clicked(self, button: Gtk.Button) -> None:
+        print("Czyszczenie formularza dla nowego motywu")
+        self.theme_name_entry.set_text("")
+        self.theme_comment_entry.set_text("")
+
+    def on_load_theme_clicked(self, button: Gtk.Button) -> None:
+        print("Otwarcie okna wyboru folderu")
+
+    def on_about_clicked(self, button: Gtk.Button) -> None:
+        """Akcja po kliknięciu przycisku 'i' (O programie)."""
+        about_dialog = Gtk.AboutDialog()
+        about_dialog.set_transient_for(self)  # Przypina okienko do głównego okna aplikacji
+        about_dialog.set_modal(True)  # Blokuje główne okno do czasu zamknięcia informacji
+
+        # Konfiguracja wyświetlanych danych
+        about_dialog.set_program_name(APP_NAME_FULL)
+        about_dialog.set_version(__version__)
+        about_dialog.set_comments(
+            "Narzędzie automatyzujące proces tworzenia i budowania motywów ikon dla systemów Linux.\n\n"
+            "Pozwala na łatwe mapowanie plików SVG na systemowe nazwy w standardzie Freedesktop, "
+            "buduje prawidłową strukturę katalogów oraz generuje plik konfiguracyjny index.theme."
+        )
+        about_dialog.set_authors([APP_AUTHOR])
+        about_dialog.set_logo_icon_name("applications-graphics-symbolic")  # Ikona nad tytułem
+
+        about_dialog.present()
 
     def on_button_clicked(self, button: Gtk.Button) -> None:
             """Akcja po kliknięciu 'Zbuduj motyw'."""

@@ -25,11 +25,14 @@ requires = ["setuptools>=61.0", "wheel"]
 # to standardowy backend obsługiwany przez większość narzędzi CI i pipa.
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.dynamic]
+version = {attr = "src.__version__"}
+
 [project]
 # === Identyfikator projektu ===
 name = "gnome-icon-pack-compiler"
 #wersja semver: MAJOR.MINOR.PATCH. Zmieniaj przy każdej nowej release.
-version = "1.0.0"
+dynamic = ["version"]
 # Krótki opis pojawiający się w pip, PyPI itp.
 description = "Pakiet do tworzenia motywów ikon GNOME z własnych plików .svg"
 # Ścieżka do pliku README (jeśli istnieje; zostaw puste, jeśli nie ma).

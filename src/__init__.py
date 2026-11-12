@@ -8,6 +8,10 @@
 #
 # Wersja pakietu — aktualizuj przy każdej nowej stabilnej wersji.
 # ----------------------------
+APP_NAME_SHORT = "GIPC"
+APP_NAME_FULL = "GIPC (GNOME Icon Pack Compiler)"
+APP_ID = "com.github.mzych.gnome-icon-pack-compiler"
+APP_AUTHOR = "Macina222"
 __version__ = "1.0.0"
 
 # Eksportowane funkcje i klasy (opcjonalnie):
