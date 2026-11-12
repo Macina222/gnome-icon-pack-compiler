@@ -43,7 +43,9 @@ class IconRow(Gtk.ListBoxRow):
         row_box.append(self.context_dropdown)
 
         # 2. Wyszukiwalny dropdown nazwy ikony systemowej
+        expression = Gtk.PropertyExpression.new(Gtk.StringObject, None, "string")
         self.name_dropdown = Gtk.DropDown()
+        self.name_dropdown.set_expression(expression)
         self.name_dropdown.set_hexpand(True)
         self.name_dropdown.set_enable_search(True)
         self.name_dropdown.set_valign(Gtk.Align.CENTER)
