@@ -28,7 +28,7 @@ from src.core.project import (
     save_theme_project,
 )
 from src.core.icon_database import IconDatabase
-
+from src.i18n import get_language, set_language, t
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -62,11 +62,9 @@ class IconRow(Gtk.ListBoxRow):
         row_box.set_margin_end(10)
 
         # --- LEWA STRONA: IKONA SYSTEMOWA (CEL) ---
-
         # 1. Wybór kontekstu (apps, status, places...)
         context_keys = list(self.suggestions_map.keys())
         self.context_dropdown = Gtk.DropDown(model=Gtk.StringList.new(context_keys))
-        self.context_dropdown.set_tooltip_text("Kategoria katalogu zgodna ze specyfikacją Freedesktop")
         self.context_dropdown.set_valign(Gtk.Align.CENTER)
         self.context_dropdown.connect("notify::selected-item", self.on_context_changed)
         row_box.append(self.context_dropdown)
@@ -74,7 +72,6 @@ class IconRow(Gtk.ListBoxRow):
         # 2. Wyszukiwalny dropdown nazwy ikony systemowej
         expression = Gtk.PropertyExpression.new(Gtk.StringObject, None, "string")
         self.name_dropdown = Gtk.DropDown()
-        self.name_dropdown.set_tooltip_text("Nazwa docelowej ikony systemowej, którą zastąpi Twój plik SVG")
         self.name_dropdown.set_expression(expression)
         self.name_dropdown.set_hexpand(True)
         self.name_dropdown.set_enable_search(True)
@@ -84,7 +81,6 @@ class IconRow(Gtk.ListBoxRow):
 
         # 3. Miniatura obecnej ikony z systemu
         self.target_preview = Gtk.Image.new_from_icon_name("image-missing")
-        self.target_preview.set_tooltip_text("Podgląd ikony z obecnego motywu systemowego")
         self.target_preview.set_pixel_size(48)
         row_box.append(self.target_preview)
 
@@ -94,34 +90,31 @@ class IconRow(Gtk.ListBoxRow):
         row_box.append(arrow)
 
         # --- PRAWA STRONA: NOWA IKONA (Z PLIKU SVG) ---
-
         # 4. Miniatura nowego pliku SVG z dysku
         self.input_preview = Gtk.Image.new_from_file(self.filepath)
-        self.input_preview.set_tooltip_text("Podgląd nowego pliku wektorowego SVG")
         self.input_preview.set_pixel_size(48)
         row_box.append(self.input_preview)
 
         # 5. Nazwa dodanego pliku SVG
-        filename_label = Gtk.Label(
+        self.filename_label = Gtk.Label(
             label=f"<b>{GLib.markup_escape_text(self.filename)}</b>",
             use_markup=True,
         )
-        filename_label.set_tooltip_text(f"Plik źródłowy: {self.filepath}")
-        filename_label.set_halign(Gtk.Align.START)
-        filename_label.set_width_chars(18)
-        filename_label.set_max_width_chars(18)
-        filename_label.set_ellipsize(3)  # Pango.EllipsizeMode.END
-        row_box.append(filename_label)
+        self.filename_label.set_halign(Gtk.Align.START)
+        self.filename_label.set_width_chars(18)
+        self.filename_label.set_max_width_chars(18)
+        self.filename_label.set_ellipsize(3)  # Pango.EllipsizeMode.END
+        row_box.append(self.filename_label)
 
         # 6. Przycisk usuwania wiersza
         self.btn_remove = Gtk.Button(icon_name="user-trash-symbolic")
-        self.btn_remove.set_tooltip_text("Usuwa ten wiersz z listy projektu")
         self.btn_remove.add_css_class("destructive-action")
         self.btn_remove.add_css_class("flat")
         self.btn_remove.set_valign(Gtk.Align.CENTER)
         row_box.append(self.btn_remove)
 
         self.set_child(row_box)
+        self.retranslate()
 
         # Inicjalizacja kontekstu (wczytanego z projektu lub domyślnego pierwszego)
         logger.debug(
@@ -137,6 +130,15 @@ class IconRow(Gtk.ListBoxRow):
                 self.context_dropdown.set_selected(context_idx)
         else:
             self.on_context_changed(self.context_dropdown, None)
+
+    def retranslate(self) -> None:
+        """Aktualizuje podpowiedzi wiersza po zmianie języka."""
+        self.context_dropdown.set_tooltip_text(t("row.context.tooltip"))
+        self.name_dropdown.set_tooltip_text(t("row.name.tooltip"))
+        self.target_preview.set_tooltip_text(t("row.target_preview.tooltip"))
+        self.input_preview.set_tooltip_text(t("row.input_preview.tooltip"))
+        self.filename_label.set_tooltip_text(t("row.filename.tooltip", filepath=self.filepath))
+        self.btn_remove.set_tooltip_text(t("row.remove.tooltip"))
 
     @classmethod
     def from_loaded_icon(
@@ -229,22 +231,25 @@ class IconRow(Gtk.ListBoxRow):
         item = self.name_dropdown.get_selected_item()
         return item.get_string() if item else ""
 
+
 class MainWindow(Gtk.ApplicationWindow):
     """Klasa głównego okna aplikacji"""
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-
-        self.set_title(f"{APP_NAME_FULL} - Main Window - {__version__}")
         self.set_default_size(1200, 800)
         self.set_resizable(True)
 
         self.icon_db: IconDatabase | None = None
         self.suggestions_map: dict[str, list[str]] = {ctx: [] for ctx in CONTEXTS}
         self._scanning_dialog: Gtk.Window | None = None
+        self._ui_ready: bool = False
 
         self._setup_header_bar()
         self._setup_layout()
+
+        self._ui_ready = True
+        self.retranslate()
 
         # Wyświetlamy modalne okienko oczekiwania i uruchamiamy skaner w tle
         self._show_scanning_dialog()
@@ -258,7 +263,7 @@ class MainWindow(Gtk.ApplicationWindow):
             resizable=False,
             deletable=False,
         )
-        dialog.set_title(f"{APP_NAME_SHORT} - Skanowanie...")
+        dialog.set_title(t("scan.title"))
         dialog.set_default_size(320, 120)
 
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
@@ -274,10 +279,11 @@ class MainWindow(Gtk.ApplicationWindow):
         spinner.start()
         box.append(spinner)
 
-        label = Gtk.Label(label=f"<b>Trwa skanowanie... Proszę czekać...</b>", use_markup=True)
+        label = Gtk.Label(label=f"<b>{GLib.markup_escape_text(t('scan.heading'))}</b>",
+                          use_markup=True)
         box.append(label)
 
-        sub_label = Gtk.Label(label=f"W tym momencie aplikacja {APP_NAME_SHORT} skanuje twój dysk w poszukiwaniu ikon.")
+        sub_label = Gtk.Label(label=t("scan.sublabel"))
         sub_label.add_css_class("dim-label")
         box.append(sub_label)
 
@@ -338,13 +344,30 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.about_btn = Gtk.Button(icon_name="dialog-information-symbolic")
         self.about_btn.add_css_class("flat")
-        self.about_btn.set_tooltip_text("Wyświetla informacje o programie oraz instrukcję tworzenia motywu")
         self.about_btn.connect("clicked", self.on_about_clicked)
         header_bar.pack_start(self.about_btn)
 
-        self.build_btn = Gtk.Button(label="Zbuduj motyw")
+        # Przełącznik języka PL | EN
+        self.lang_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        self.lang_box.add_css_class("linked")
+
+        self.btn_lang_pl = Gtk.ToggleButton(label="PL")
+        self.btn_lang_en = Gtk.ToggleButton(label="EN")
+        self.btn_lang_en.set_group(self.btn_lang_pl)
+
+        current_lang = get_language()
+        self.btn_lang_pl.set_active(current_lang == "pl")
+        self.btn_lang_en.set_active(current_lang == "en")
+
+        self.btn_lang_pl.connect("toggled", self._on_language_toggled, "pl")
+        self.btn_lang_en.connect("toggled", self._on_language_toggled, "en")
+
+        self.lang_box.append(self.btn_lang_pl)
+        self.lang_box.append(self.btn_lang_en)
+        header_bar.pack_start(self.lang_box)
+
+        self.build_btn = Gtk.Button()
         self.build_btn.add_css_class("suggested-action")
-        self.build_btn.set_tooltip_text("Generuje strukturę katalogów, tworzy plik konfiguracyjny .theme oraz odświeża pamięć podręczną ikon")
         self.build_btn.connect("clicked", self.on_button_clicked)
         header_bar.pack_end(self.build_btn)
 
@@ -358,40 +381,36 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # 1. LEWY PANEL (Ustawienia motywu)
         left_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
-        left_panel.set_size_request(300, -1)  # Stała minimalna szerokość 300px
+        left_panel.set_size_request(300, -1)
 
         # Przyciski zarządzania projektem
         project_actions_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-
-        self.btn_new_theme = Gtk.Button(label="Nowy motyw")
+        self.btn_new_theme = Gtk.Button()
         self.btn_new_theme.set_hexpand(True)
-        self.btn_new_theme.set_tooltip_text("Czyści formularz oraz listę ikon i przygotowuje program pod nowy motyw")
         self.btn_new_theme.connect("clicked", self.on_new_theme_clicked)
 
-        self.btn_load_theme = Gtk.Button(label="Wczytaj motyw")
+        self.btn_load_theme = Gtk.Button()
         self.btn_load_theme.set_hexpand(True)
-        self.btn_load_theme.set_tooltip_text("Wczytuje istniejący katalog motywu ikon z dysku w celu jego edycji")
         self.btn_load_theme.connect("clicked", self.on_load_theme_clicked)
 
         project_actions_box.append(self.btn_new_theme)
         project_actions_box.append(self.btn_load_theme)
-
         left_panel.append(project_actions_box)
 
-        settings_title = Gtk.Label(label="<b>Ustawienia Projektu</b>", use_markup=True)
-        settings_title.set_halign(Gtk.Align.START)
-        left_panel.append(settings_title)
+        self.settings_title = Gtk.Label(use_markup=True)
+        self.settings_title.set_halign(Gtk.Align.START)
+        left_panel.append(self.settings_title)
 
         # Pola formularza
-        self.theme_name_entry = Gtk.Entry(placeholder_text="Np. Material-Expressive")
-        self.theme_name_entry.set_tooltip_text("Nazwa motywu wyświetlana w ustawieniach GNOME (np. GNOME Tweaks)")
-        self.theme_comment_entry = Gtk.Entry(placeholder_text="Opis motywu")
-        self.theme_comment_entry.set_tooltip_text("Opcjonalny opis motywu zapisywany w pliku index.theme")
+        self.name_label = Gtk.Label(halign=Gtk.Align.START)
+        self.theme_name_entry = Gtk.Entry()
 
-        left_panel.append(Gtk.Label(label="Nazwa motywu:", halign=Gtk.Align.START))
+        self.comment_label = Gtk.Label(halign=Gtk.Align.START)
+        self.theme_comment_entry = Gtk.Entry()
+
+        left_panel.append(self.name_label)
         left_panel.append(self.theme_name_entry)
-
-        left_panel.append(Gtk.Label(label="Opis:", halign=Gtk.Align.START))
+        left_panel.append(self.comment_label)
         left_panel.append(self.theme_comment_entry)
 
         main_box.append(left_panel)
@@ -402,39 +421,92 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # 2. PRAWY PANEL (Lista ikon)
         right_panel = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
-        right_panel.set_hexpand(True)  # Zajmuje całą pozostałą przestrzeń (dobrze dla szerokich monitorów)
+        right_panel.set_hexpand(True)
 
         header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        icons_title = Gtk.Label(label="<b>Pliki SVG w motywie</b>", use_markup=True)
-        icons_title.set_hexpand(True)
-        icons_title.set_halign(Gtk.Align.START)
+        self.icons_title = Gtk.Label(use_markup=True)
+        self.icons_title.set_hexpand(True)
+        self.icons_title.set_halign(Gtk.Align.START)
 
-        self.add_icon_btn = Gtk.Button(label="+ Dodaj SVG")
-        self.add_icon_btn.set_tooltip_text("Otwiera okno wyboru jednego/wielu plików .svg z dysku")
+        self.add_icon_btn = Gtk.Button()
         self.add_icon_btn.connect("clicked", self.on_add_svg_clicked)
 
-        header_box.append(icons_title)
+        header_box.append(self.icons_title)
         header_box.append(self.add_icon_btn)
         right_panel.append(header_box)
 
         # Scrollowana lista dodanych ikon
         scrolled_window = Gtk.ScrolledWindow()
-        scrolled_window.set_vexpand(True)  # Wypełnia miejsce w pionie
+        scrolled_window.set_vexpand(True)
         scrolled_window.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
 
         self.icons_listbox = Gtk.ListBox()
-        self.icons_listbox.set_selection_mode(Gtk.SelectionMode.NONE)  # Wyłączamy zaznaczanie całych wierszy
+        self.icons_listbox.set_selection_mode(Gtk.SelectionMode.NONE)
 
-        # Dodajemy placeholder widoczny, gdy lista jest pusta
-        placeholder_label = Gtk.Label(label="Brak dodanych ikon.\nKliknij '+ Dodaj SVG', aby rozpocząć.")
-        placeholder_label.set_justify(Gtk.Justification.CENTER)
-        placeholder_label.add_css_class("dim-label")
-        self.icons_listbox.set_placeholder(placeholder_label)
+        self.placeholder_label = Gtk.Label()
+        self.placeholder_label.set_justify(Gtk.Justification.CENTER)
+        self.placeholder_label.add_css_class("dim-label")
+        self.icons_listbox.set_placeholder(self.placeholder_label)
 
         scrolled_window.set_child(self.icons_listbox)
         right_panel.append(scrolled_window)
-
         main_box.append(right_panel)
+
+    def _on_language_toggled(self, button: Gtk.ToggleButton, lang: str) -> None:
+        """Reaguje na przełączenie języka w pasku górnym i odświeża całe UI."""
+        if not button.get_active():
+            GLib.idle_add(self._ensure_one_language_active)
+            return
+        if not self._ui_ready or get_language() == lang:
+            return
+        set_language(lang)
+        self.retranslate()
+
+    def _ensure_one_language_active(self) -> bool:
+        """Zapobiega odznaczeniu obu przycisków języka w grupie."""
+        if not self.btn_lang_pl.get_active() and not self.btn_lang_en.get_active():
+            if get_language() == "pl":
+                self.btn_lang_pl.set_active(True)
+            else:
+                self.btn_lang_en.set_active(True)
+        return GLib.SOURCE_REMOVE
+
+    def retranslate(self) -> None:
+        """Aktualizuje wszystkie etykiety, placeholdery i podpowiedzi po zmianie języka."""
+        self.set_title(t("window.title"))
+        self.about_btn.set_tooltip_text(t("header.about.tooltip"))
+        self.lang_box.set_tooltip_text(t("header.lang.tooltip"))
+        self.build_btn.set_label(t("header.build.label"))
+        self.build_btn.set_tooltip_text(t("header.build.tooltip"))
+
+        self.btn_new_theme.set_label(t("project.new.label"))
+        self.btn_new_theme.set_tooltip_text(t("project.new.tooltip"))
+        self.btn_load_theme.set_label(t("project.load.label"))
+        self.btn_load_theme.set_tooltip_text(t("project.load.tooltip"))
+
+        self.settings_title.set_markup(
+            f"<b>{GLib.markup_escape_text(t('settings.title'))}</b>"
+        )
+        self.name_label.set_text(t("settings.name.label"))
+        self.theme_name_entry.set_placeholder_text(t("settings.name.placeholder"))
+        self.theme_name_entry.set_tooltip_text(t("settings.name.tooltip"))
+
+        self.comment_label.set_text(t("settings.comment.label"))
+        self.theme_comment_entry.set_placeholder_text(t("settings.comment.placeholder"))
+        self.theme_comment_entry.set_tooltip_text(t("settings.comment.tooltip"))
+
+        self.icons_title.set_markup(
+            f"<b>{GLib.markup_escape_text(t('icons.title'))}</b>"
+        )
+        self.add_icon_btn.set_label(t("icons.add.label"))
+        self.add_icon_btn.set_tooltip_text(t("icons.add.tooltip"))
+        self.placeholder_label.set_text(t("icons.placeholder"))
+
+        row = self.icons_listbox.get_first_child()
+        while row is not None:
+            if isinstance(row, IconRow):
+                row.retranslate()
+            row = row.get_next_sibling()
 
         # --- Obsługa zdarzeń ---
 
@@ -451,9 +523,9 @@ class MainWindow(Gtk.ApplicationWindow):
             self.icons_listbox.remove(child)
 
     def on_load_theme_clicked(self, button: Gtk.Button) -> None:
-        print("file_manager_load_theme_clicked")
+        logger.debug("file_manager_load_theme_clicked")
         dialog = Gtk.FileDialog()
-        dialog.set_title(f"{APP_NAME_SHORT} - Wybierz folder motywu ikon")
+        dialog.set_title(t("dialog.load.title"))
         dialog.set_initial_folder(Gio.File.new_for_path(str(DEFAULT_ICONS_DIR)))
         dialog.select_folder(self, None, self._on_theme_folder_selected)
 
@@ -472,8 +544,8 @@ class MainWindow(Gtk.ApplicationWindow):
             project = load_theme_project(folder_path)
         except (ProjectNotFoundError, InvalidThemeError) as err:
             self._show_alert(
-                "Błąd wczytywania folderu",
-                "Upewnij się, że ścieżka do folderu motywu jest poprawna",
+                t("dialog.load.error.title"),
+                t("dialog.load.error.detail", err=err),
             )
             return
 
@@ -494,25 +566,13 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_about_clicked(self, button: Gtk.Button) -> None:
         """Akcja po kliknięciu przycisku 'i' (O programie)."""
         about_dialog = Gtk.AboutDialog()
-        about_dialog.set_transient_for(self)  # Przypina okienko do głównego okna aplikacji
-        about_dialog.set_modal(True)  # Blokuje główne okno do czasu zamknięcia informacji
-
-        # Konfiguracja wyświetlanych danych
+        about_dialog.set_transient_for(self)
+        about_dialog.set_modal(True)
         about_dialog.set_program_name(APP_NAME_FULL)
         about_dialog.set_version(__version__)
-        about_dialog.set_comments(
-            "Narzędzie automatyzujące proces tworzenia i budowania motywów ikon dla systemów Linux.\n\n"
-            "Pozwala na łatwe mapowanie plików SVG na systemowe nazwy w standardzie Freedesktop, "
-            "buduje prawidłową strukturę katalogów oraz generuje plik konfiguracyjny index.theme. \n\n"
-            "Użytkowniku! Aby stworzyć nowy motyw: \n "
-            "1. Nadaj mu nazwę oraz opis w lewej części okna. \n"
-            "2. Dodaj własne ikony w prawej stronie okna i wybierz jakie mają zastąpić/reprezentować. \n"
-            "3. Gdy będziesz gotowy, kliknij zbuduj motyw a program sam dokona odpowiednich zmian nazw oraz wygeneruje plik konfiguracyjny \n"
-            "4. Wybierz motyw w ustawieniach systemowych (np. GNOME Tweaks)"
-        )
+        about_dialog.set_comments(t("about.comments"))
         about_dialog.set_authors([APP_AUTHOR])
-        about_dialog.set_logo_icon_name("applications-graphics-symbolic")  # Ikona nad tytułem
-
+        about_dialog.set_logo_icon_name("applications-graphics-symbolic")
         about_dialog.present()
 
     def _show_alert(self, title: str, detail: str) -> None:
@@ -571,33 +631,30 @@ class MainWindow(Gtk.ApplicationWindow):
 
         if not project.name:
             self._show_alert(
-                "Brak nazwy motywu",
-                "Wpisz nazwę motywu w lewym panelu przed rozpoczęciem kompilacji",
+                t("alert.no_name.title"),
+                t("alert.no_name.detail"),
             )
             return
 
         if not project.icons and not incomplete_files:
             self._show_alert(
-                "Lista ikon jest pusta",
-                "Dodaj przynajmniej jeden plik SVG za pomocą przycisku „+ Dodaj SVG”.",
+                t("alert.empty_list.title"),
+                t("alert.empty_list.detail"),
             )
             return
 
         if incomplete_files:
             self._show_alert(
-                "Niekompletne mapowanie ikon",
-                "Następujące pliki nie mają wybranej kategorii lub nazwy docelowej:\n• "
-                + "\n• ".join(incomplete_files),
+                t("alert.incomplete.title"),
+                t("alert.incomplete.detail", files="\n• ".join(incomplete_files)),
             )
             return
 
         if duplicates:
             unique_duplicates = list(dict.fromkeys(duplicates))
             self._show_alert(
-                "Wykryto zduplikowane ikony docelowe",
-                "Kilka plików wskazuje na tę samą ikonę systemową:\n• "
-                + "\n• ".join(unique_duplicates)
-                + "\n\nZmień nazwę docelową lub usuń powtarzające się wiersze przed zapisem.",
+                t("alert.duplicates.title"),
+                t("alert.duplicates.detail", duplicates="\n• ".join(unique_duplicates)),
             )
             return
 
@@ -606,35 +663,39 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as err:
             logger.exception("build_theme_failed")
             self._show_alert(
-                "Nie udało się zbudować motywu",
-                f"Wystąpił błąd podczas zapisu plików na dysk:\n{err}",
+                t("alert.build_error.title"),
+                t("alert.build_error.detail", err=err),
             )
             return
 
         logger.debug(f"build_theme_success: dir={project_dir} count={saved_count}")
         self._show_alert(
-            "Motyw został zbudowany",
-            f"Zapisano motyw „{project.name}” ({saved_count} ikon) w katalogu:\n{project_dir}",
+            t("alert.build_success.title"),
+            t(
+                "alert.build_success.detail",
+                name=project.name,
+                count=saved_count,
+                path=project_dir,
+            ),
         )
 
     def on_add_svg_clicked(self, button: Gtk.Button) -> None:
         """Akcja po kliknięciu 'Dodaj SVG'."""
-        print(f"add_svg_button_clicked")
         logger.debug("add_svg_button_clicked")
 
         dialog = Gtk.FileDialog()
-        dialog.set_title(f"{APP_NAME_SHORT} - Dodaj SVG")
+        dialog.set_title(t("dialog.add_svg.title"))
 
         svg_filter = Gtk.FileFilter()
-        svg_filter.set_name(f"Pliki wektorowe SVG (*.svg)")
+        svg_filter.set_name(t("dialog.add_svg.filter"))
         svg_filter.add_mime_type("image/svg+xml")
         svg_filter.add_pattern("*.svg")
 
         filters = Gio.ListStore.new(Gtk.FileFilter)
         filters.append(svg_filter)
+
         dialog.set_filters(filters)
         dialog.set_default_filter(svg_filter)
-
         dialog.open_multiple(self, None, self._on_files_selected)
 
     def _on_files_selected(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
@@ -647,13 +708,13 @@ class MainWindow(Gtk.ApplicationWindow):
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
             filepath = gfile.get_path()
-            self._add_svg_row(filepath)
+            if filepath:
+                self._add_svg_row(filepath)
 
     def _add_svg_row(self, filepath: str) -> None:
         try:
             valid_path = validate_svg(filepath)
         except (FileNotFoundError, InvalidSVGError) as e:
-            print(f"invalid_file_skipped: {e}")
             logger.debug(f"invalid_file_skipped: {e}")
             return
 
@@ -661,7 +722,6 @@ class MainWindow(Gtk.ApplicationWindow):
             filepath=str(valid_path),
             suggestions_map=self.suggestions_map,
         )
-
         new_row.btn_remove.connect("clicked", lambda btn: self.icons_listbox.remove(new_row))
         self.icons_listbox.append(new_row)
 

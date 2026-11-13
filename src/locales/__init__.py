@@ -1,0 +1,1 @@
+"""Pakiet zasobów językowych (PL / EN) dla aplikacji GIPC."""
