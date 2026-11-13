@@ -65,9 +65,12 @@ def add_icon_to_theme(
     if clean_name.endswith(".svg"):
         clean_name = clean_name[:-4]
 
-    dest_path = target_dir / f"{clean_name}.svg"
-    shutil.copy2(svg, dest_path)
+    dest_path = (target_dir / f"{clean_name}.svg").resolve()
 
+    if svg == dest_path:
+        return dest_path
+
+    shutil.copy2(svg, dest_path)
     return dest_path
 
 def remove_icon_from_theme(

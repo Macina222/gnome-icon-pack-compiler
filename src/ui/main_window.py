@@ -1,7 +1,12 @@
 import sys
 import logging
+from readline import get_line_buffer
+
 import gi
 import threading
+
+from config import DEFAULT_ICONS_DIR
+from core.project import load_theme_project, ProjectNotFoundError, InvalidThemeError, LoadedIcon
 from src import __version__, APP_NAME_FULL, APP_AUTHOR, APP_ID, APP_NAME_SHORT
 from src.core.icon_database import IconDatabase
 from src.config import CONTEXTS
@@ -21,11 +26,20 @@ logger = logging.getLogger(__name__)
 class IconRow(Gtk.ListBoxRow):
     """Reprezentuje wiersz mapowania: Ikona systemowa -> Nowa ikona SVG."""
 
-    def __init__(self, filepath: str, suggestions_map: dict[str, list[str]], *args, **kwargs) -> None:
+    def __init__(
+        self,
+        filepath: str,
+        suggestions_map: dict[str, list[str]],
+        initial_context: str | None = None,
+        initial_name: str | None = None,
+        *args,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.filepath = str(filepath)
         self.filename = Path(filepath).name
         self.suggestions_map = suggestions_map
+        self._pending_initial_name = initial_name
 
         row_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         row_box.set_margin_top(8)
@@ -70,7 +84,10 @@ class IconRow(Gtk.ListBoxRow):
         row_box.append(self.input_preview)
 
         # 5. Nazwa dodanego pliku SVG
-        filename_label = Gtk.Label(label=f"<b>{GLib.markup_escape_text(self.filename)}</b>", use_markup=True)
+        filename_label = Gtk.Label(
+            label=f"<b>{GLib.markup_escape_text(self.filename)}</b>",
+            use_markup=True,
+        )
         filename_label.set_halign(Gtk.Align.START)
         filename_label.set_width_chars(18)
         filename_label.set_max_width_chars(18)
@@ -86,21 +103,92 @@ class IconRow(Gtk.ListBoxRow):
 
         self.set_child(row_box)
 
-        # Inicjalizacja pierwszego kontekstu i podglądu
-        logger.debug(f"IconRow init filepath={filepath} contexts={list(self.suggestions_map.keys())}")
-        self.on_context_changed(self.context_dropdown, None)
+        # Inicjalizacja kontekstu (wczytanego z projektu lub domyślnego pierwszego)
+        logger.debug(
+            f"IconRow init filepath={filepath} initial_context={initial_context} "
+            f"initial_name={initial_name} contexts={context_keys}"
+        )
+        if initial_context and initial_context in context_keys:
+            context_idx = context_keys.index(initial_context)
+            if context_idx == 0:
+                # Indeks 0 jest już wybrany domyślnie przez GTK4 — sygnał nie zostanie wyemitowany
+                self.on_context_changed(self.context_dropdown, None)
+            else:
+                self.context_dropdown.set_selected(context_idx)
+        else:
+            self.on_context_changed(self.context_dropdown, None)
+
+    @classmethod
+    def from_loaded_icon(
+        cls,
+        icon: LoadedIcon,
+        suggestions_map: dict[str, list[str]],
+    ) -> "IconRow":
+        """Tworzy wiersz GUI bezpośrednio z obiektu domenowego LoadedIcon."""
+        return cls(
+            filepath=str(icon.filepath),
+            suggestions_map=suggestions_map,
+            initial_context=icon.context,
+            initial_name=icon.icon_name,
+        )
+
+    def to_loaded_icon(self) -> LoadedIcon:
+        """Serializuje aktualny stan widżetów wiersza do obiektu LoadedIcon."""
+        return LoadedIcon(
+            context=self.get_selected_context(),
+            icon_name=self.get_selected_name(),
+            filepath=Path(self.filepath),
+        )
+
+    def update_suggestions_map(self, suggestions_map: dict[str, list[str]]) -> None:
+        """Odświeża listy podpowiedzi (np. po zakończeniu skanowania w tle) z zachowaniem wyboru."""
+        current_context = self.get_selected_context()
+        current_name = self.get_selected_name()
+
+        self.suggestions_map = suggestions_map
+        self._pending_initial_name = current_name or None
+
+        context_keys = list(self.suggestions_map.keys())
+        self.context_dropdown.set_model(Gtk.StringList.new(context_keys))
+
+        if current_context and current_context in context_keys:
+            context_idx = context_keys.index(current_context)
+            if context_idx == 0:
+                self.on_context_changed(self.context_dropdown, None)
+            else:
+                self.context_dropdown.set_selected(context_idx)
+        else:
+            self.on_context_changed(self.context_dropdown, None)
 
     def on_context_changed(self, dropdown: Gtk.DropDown, pspec) -> None:
-        """Podmienia model podpowiedzi po zmianie kontekstu."""
+        """Podmienia model podpowiedzi po zmianie kontekstu i zaznacza docelową nazwę."""
         selected_item = dropdown.get_selected_item()
         if not selected_item:
             return
 
         context = selected_item.get_string()
-        new_suggestions = self.suggestions_map.get(context, [])
-        logger.debug(f"IconRow context changed: {context} suggestions_count={len(new_suggestions)}")
+        new_suggestions = list(self.suggestions_map.get(context, []))
+
+        target_name = self._pending_initial_name
+        self._pending_initial_name = None
+
+        if target_name and target_name not in new_suggestions:
+            new_suggestions.insert(0, target_name)
+
+        logger.debug(
+            f"IconRow context changed: {context} suggestions_count={len(new_suggestions)} "
+            f"target_name={target_name}"
+        )
         self.name_dropdown.set_model(Gtk.StringList.new(new_suggestions))
-        self.on_name_changed(self.name_dropdown, None)
+
+        if target_name and target_name in new_suggestions:
+            name_idx = new_suggestions.index(target_name)
+            if name_idx != 0:
+                self.name_dropdown.set_selected(name_idx)
+            else:
+                self.on_name_changed(self.name_dropdown, None)
+        else:
+            self.on_name_changed(self.name_dropdown, None)
 
     def on_name_changed(self, dropdown: Gtk.DropDown, pspec) -> None:
         """Odświeża miniaturę ikony systemowej na podstawie wybranej nazwy."""
@@ -283,6 +371,48 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def on_load_theme_clicked(self, button: Gtk.Button) -> None:
         print("file_manager_load_theme_clicked")
+        dialog = Gtk.FileDialog()
+        dialog.set_title(f"{APP_NAME_SHORT} - Wybierz folder motywu ikon")
+        dialog.set_initial_folder(Gio.File.new_for_path(str(DEFAULT_ICONS_DIR)))
+        dialog.select_folder(self, None, self._on_theme_folder_selected)
+
+    def _on_theme_folder_selected(self, dialog: Gtk.FileDialog, result: Gio.AsyncResult) -> None:
+        """Otwiera wybrany folder i ładuje projekt do interfejsu"""
+        try:
+            folder = dialog.select_folder_finish(result)
+        except GLib.Error:
+            return # Anulowanie wyboru, zamknięcie okna
+
+        folder_path = folder.get_path()
+        if not folder_path:
+            return
+
+        try:
+            project = load_theme_project(folder_path)
+        except (ProjectNotFoundError, InvalidThemeError) as err:
+            print(f"load_theme_error: {err}")
+            return
+
+        # Uzupełnienie formularza w lewym oknie
+        self.theme_name_entry.set_text(project.name)
+        self.theme_comment_entry.set_text(project.comment)
+
+        # Wyczyszczenie listy svg w prawym oknie
+        while (child := self.icons_listbox.get_first_child()) is not None:
+            self.icons_listbox.remove(child)
+
+        # Odtworzenie listy IconRow dla ikon z projektu
+        for icon in project.icons:
+            row = IconRow(
+                filepath=str(icon.filepath),
+                suggestions_map=self.suggestions_map,
+                initial_context=icon.context,
+                initial_name=icon.name,
+            )
+
+            row.btn_remove.connect("clicked", lambda btn, r=row: self.icons_listbox.remove(r))
+            self.icons_listbox.append(row)
+
 
     def on_about_clicked(self, button: Gtk.Button) -> None:
         """Akcja po kliknięciu przycisku 'i' (O programie)."""
@@ -296,7 +426,12 @@ class MainWindow(Gtk.ApplicationWindow):
         about_dialog.set_comments(
             "Narzędzie automatyzujące proces tworzenia i budowania motywów ikon dla systemów Linux.\n\n"
             "Pozwala na łatwe mapowanie plików SVG na systemowe nazwy w standardzie Freedesktop, "
-            "buduje prawidłową strukturę katalogów oraz generuje plik konfiguracyjny index.theme."
+            "buduje prawidłową strukturę katalogów oraz generuje plik konfiguracyjny index.theme. \n\n"
+            "Aby stworzyć nowy motyw: \n "
+            "1. Nadaj mu nazwę oraz komentarz w lewej części okna. \n"
+            "2. Dodaj własne ikony w prawej stronie okna i wybierz jaką ikonę systemową ma twoja własna zastapić. \n"
+            "3. Gdy będziesz gotowy, kliknij zbuduj motyw a program sam dokona odpowiednich zmian nazw oraz kompilacji \n"
+            "4. Wybierz motyw w ustawieniach systemowych (np. GNOME Tweaks)"
         )
         about_dialog.set_authors([APP_AUTHOR])
         about_dialog.set_logo_icon_name("applications-graphics-symbolic")  # Ikona nad tytułem
