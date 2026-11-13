@@ -84,6 +84,7 @@ python -m unittest discover -s tests -v
 
 ## Plan rozwoju (Roadmap)
 
+- [ ] Tłumaczenie aplikacji i wybór języka `en/pl`
 - [ ] Wybór motywu dziedziczonego (`Inherits`) z listy motywów zainstalowanych w `/usr/share/icons`.
 - [ ] Obsługa aliasów — tworzenie dowiązań symbolicznych (`symlink`) dla wielu nazw systemowych wskazujących na ten sam plik `.svg`.
 - [ ] Automatyczna konwersja ikon na wariant symboliczny (`-symbolic.svg` z atrybutem `currentColor`) dla górnego paska GNOME Shell.
@@ -91,7 +92,7 @@ python -m unittest discover -s tests -v
 
 ## Współpraca
 
-Zachęcam do kontaktu i pomocy przy rozwoju projektu
+Zachęcam do kontaktu i pomocy przy rozwoju projektu. Zachęcam do załączania propozycji funkcji oraz poprawek błędów :)
 
 ## Licencja
 
