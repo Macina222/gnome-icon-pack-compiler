@@ -9,7 +9,7 @@
 # Wersja pakietu — aktualizuj przy każdej nowej stabilnej wersji.
 # ----------------------------
 APP_NAME_SHORT = "GIPC"
-APP_NAME_FULL = "GIPC (GNOME Icon Pack Crator)"
+APP_NAME_FULL = "GIPC (GNOME Icon Pack Creator)"
 APP_ID = "com.github.mzych.gnome-icon-pack-creator"
 APP_AUTHOR = "Macina222"
 __version__ = "1.0.0"

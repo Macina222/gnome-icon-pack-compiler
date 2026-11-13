@@ -1,20 +1,18 @@
 import sys
 import logging
-from readline import get_line_buffer
-
-import gi
 import threading
-
-from config import DEFAULT_ICONS_DIR
-from core.project import load_theme_project, ProjectNotFoundError, InvalidThemeError, LoadedIcon
-from src import __version__, APP_NAME_FULL, APP_AUTHOR, APP_ID, APP_NAME_SHORT
-from src.core.icon_database import IconDatabase
-from src.config import CONTEXTS
-from src.core.svg_handler import InvalidSVGError, validate_svg
-from gi.repository import Gtk, Gio, GLib
 from pathlib import Path
 
+import gi
+
 gi.require_version('Gtk', '4.0')
+from gi.repository import Gtk, Gio, GLib
+
+from src import __version__, APP_NAME_FULL, APP_AUTHOR, APP_ID, APP_NAME_SHORT
+from src.config import CONTEXTS, DEFAULT_ICONS_DIR
+from src.core.icon_database import IconDatabase
+from src.core.project import load_theme_project, ProjectNotFoundError, InvalidThemeError, LoadedIcon
+from src.core.svg_handler import InvalidSVGError, validate_svg
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -403,13 +401,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Odtworzenie listy IconRow dla ikon z projektu
         for icon in project.icons:
-            row = IconRow(
-                filepath=str(icon.filepath),
-                suggestions_map=self.suggestions_map,
-                initial_context=icon.context,
-                initial_name=icon.name,
-            )
-
+            row = IconRow.from_loaded_icon(icon, self.suggestions_map)
             row.btn_remove.connect("clicked", lambda btn, r=row: self.icons_listbox.remove(r))
             self.icons_listbox.append(row)
 

@@ -16,7 +16,7 @@ Proste narzędzie z interfejsem graficznym (GTK 4) automatyzujące proces tworze
 - PyGObject (`python-gobject`)
 
 ## Uruchomienie
-- Intrukcje uruchomienia pojawią się w późniejszej fazie projektu, gdy paczka będzie miała możliwość kompilacji.
+- Instrukcje uruchomienia pojawią się w późniejszej fazie projektu, gdy paczka będzie miała możliwość kompilacji.
 
 ## Licencja
 Projekt jest udostępniany na licencji [MIT](LICENSE).

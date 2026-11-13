@@ -61,8 +61,8 @@ def add_icon_to_theme(
     target_dir = Path(project_dir) / "scalable" / context
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    clean_name = icon_name.strip().lower()
-    if clean_name.endswith(".svg"):
+    clean_name = icon_name.strip()
+    if clean_name.lower().endswith(".svg"):
         clean_name = clean_name[:-4]
 
     dest_path = (target_dir / f"{clean_name}.svg").resolve()
@@ -85,8 +85,8 @@ def remove_icon_from_theme(
             f"Nieznany kontekst: {context}"
         )
 
-    clean_name = icon_name.strip().lower()
-    if clean_name.endswith(".svg"):
+    clean_name = icon_name.strip()
+    if clean_name.lower().endswith(".svg"):
         clean_name = clean_name[:-4]
 
     target = Path(project_dir) / "scalable" / context / f"{clean_name}.svg"

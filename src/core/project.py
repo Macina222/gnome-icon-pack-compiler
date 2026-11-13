@@ -1,10 +1,6 @@
 import configparser
 import shutil
-import subprocess
-
-from src.core.svg_handler import add_icon_to_theme
 from pathlib import Path
-from src import APP_NAME_SHORT
 from dataclasses import dataclass, field
 from src.config import (
     CONTEXTS,
@@ -35,29 +31,43 @@ class ThemeProject:
     inherits: str
     icons: list[LoadedIcon] = field(default_factory=list)
 
-def create_new_theme_project(
-        name: str,
-        output_dir: str | Path = DEFAULT_ICONS_DIR,
-        comments: str = f"User made Icon Theme, generated using {APP_NAME_SHORT} by Macina222",
-        inherits: str = "hicolor,Adwaita"
-) -> Path:
+def _resolve_theme_dir(name: str, base_dir: str | Path) -> tuple[Path, Path]:
+    """Waliduje nazwę motywu i zwraca bezpieczną ścieżkę bazową oraz katalog motywu."""
+    clean_name = name.strip()
+    if not clean_name:
+        raise ValueError("Nazwa motywu nie może być pusta.")
 
-    base_path = Path(output_dir).expanduser().resolve()
-    theme_slug = name.lower().replace(" ", "-")
-    theme_dir = base_path / theme_slug
+    theme_slug = clean_name.replace(" ", "-")
+    if "/" in theme_slug or "\\" in theme_slug or ".." in theme_slug:
+        raise ValueError(f"Nieprawidłowa nazwa motywu: {name}")
+
+    base_path = Path(base_dir).expanduser().resolve()
+    theme_dir = (base_path / theme_slug).resolve()
+
+    if not theme_dir.is_relative_to(base_path) or theme_dir == base_path:
+        raise ValueError(f"Ścieżka motywu wykracza poza katalog bazowy: {theme_dir}")
+
+    return base_path, theme_dir
+
+def create_new_theme_project(
+    name: str,
+    output_dir: str | Path = DEFAULT_ICONS_DIR,
+    comments: str = DEFAULT_COMMENT,
+    inherits: str = DEFAULT_INHERITS,
+) -> Path:
+    _, theme_dir = _resolve_theme_dir(name, output_dir)
 
     # Tworzenie podkatalogów
     for context in CONTEXTS:
         (theme_dir / "scalable" / context).mkdir(parents=True, exist_ok=True)
 
     # Tworzenie pliku konfiguracyjnego
-
     config = configparser.ConfigParser()
     config.optionxform = str
 
     directories = [f"scalable/{context}" for context in CONTEXTS]
     config["Icon Theme"] = {
-        "Name": name,
+        "Name": name.strip(),
         "Comment": comments,
         "Inherits": inherits,
         "Directories": ",".join(directories),
@@ -73,7 +83,7 @@ def create_new_theme_project(
             "Type": "Scalable",
         }
 
-    # Zapis pliku configuracynjego
+    # Zapis pliku konfiguracyjnego
     theme_file = theme_dir / "index.theme"
     with open(theme_file, "w", encoding="utf-8") as f:
         config.write(f, space_around_delimiters=False)
@@ -85,9 +95,7 @@ def delete_theme_project(
     base_dir: str | Path = DEFAULT_ICONS_DIR,
     force: bool = False,
 ) -> Path:
-    base_path = Path(base_dir).expanduser().resolve()
-    theme_slug = name.lower().replace(" ", "-")
-    theme_dir = base_path / theme_slug
+    _, theme_dir = _resolve_theme_dir(name, base_dir)
 
     if not theme_dir.exists():
         raise ProjectNotFoundError(f"Projekt nie istnieje: {theme_dir}")
@@ -144,8 +152,8 @@ def load_theme_project(theme_dir: str | Path) -> ThemeProject:
     comment = theme_section.get("Comment", DEFAULT_COMMENT).strip()
     inherits = theme_section.get("Inherits", DEFAULT_INHERITS).strip()
 
-    # Skanowanie katalogów scannable
-    loaded_icons = list[LoadedIcon] = []
+    # Skanowanie katalogów scalable
+    loaded_icons: list[LoadedIcon] = []
 
     for context in CONTEXTS:
         context_dir = project_dir / "scalable" / context

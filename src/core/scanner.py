@@ -4,12 +4,13 @@ from src.config import CONTEXTS, SYSTEM_ICONS_DIR
 
 logger = logging.getLogger(__name__)
 
-def scan_installed_apps() -> set[str]:
+def scan_installed_apps(desktop_dirs: list[Path] | None = None) -> set[str]:
     logger.debug("scan_installed_apps_start")
-    desktop_dirs = [
-        Path("/usr/share/applications/"),
-        Path("~/.local/share/applications/").expanduser(),
-    ]
+    if desktop_dirs is None:
+        desktop_dirs = [
+            Path("/usr/share/applications/"),
+            Path("~/.local/share/applications/").expanduser(),
+        ]
 
     icon_names = set()
 
@@ -35,9 +36,9 @@ def scan_installed_apps() -> set[str]:
     logger.debug(f"scan_installed_apps_done: found={len(icon_names)}")
     return icon_names
 
-def scan_system_icons(theme_name: str = "Adwaita") -> dict[str, set[str]]:
+def scan_system_icons(theme_name: str = "Adwaita", base_icons_dir: Path = SYSTEM_ICONS_DIR) -> dict[str, set[str]]:
     logger.debug(f"scan_system_icons_start: theme={theme_name}")
-    theme_dir = SYSTEM_ICONS_DIR / theme_name
+    theme_dir = base_icons_dir / theme_name
     icon_db = {context: set() for context in CONTEXTS if context != "apps"}
 
     if not theme_dir.exists():
