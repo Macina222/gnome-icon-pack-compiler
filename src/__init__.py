@@ -12,7 +12,7 @@ APP_NAME_SHORT = "GIPC"
 APP_NAME_FULL = "GIPC (GNOME Icon Pack Creator)"
 APP_ID = "com.github.mzych.gnome-icon-pack-creator"
 APP_AUTHOR = "Macina222"
-__version__ = "1.0.0"
+__version__ = "pre-release"
 
 # Eksportowane funkcje i klasy (opcjonalnie):
 # Jeśli potrzebujesz, by `from src import ...` działał bez kwalifikowania,
