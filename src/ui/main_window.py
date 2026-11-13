@@ -2,7 +2,6 @@ import sys
 import logging
 import threading
 from pathlib import Path
-
 import gi
 
 gi.require_version('Gtk', '4.0')
@@ -213,23 +212,61 @@ class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-        self.set_title(f"{APP_NAME_FULL} - Main Window")
+        self.set_title(f"{APP_NAME_FULL} - Main Window - {__version__}")
         self.set_default_size(1200, 800)
         self.set_resizable(True)
 
-        # 1. Stan początkowy
-        self.icon_db = None
-        self.suggestions_map = {ctx: [] for ctx in CONTEXTS}
+        self.icon_db: IconDatabase | None = None
+        self.suggestions_map: dict[str, list[str]] = {ctx: [] for ctx in CONTEXTS}
+        self._scanning_dialog: Gtk.Window | None = None
 
         self._setup_header_bar()
         self._setup_layout()
 
-        # 2. Blokujemy przycisk na czas ładowania, by uniknąć błędów
-        self.add_icon_btn.set_sensitive(False)
-        self.add_icon_btn.set_label("Ładowanie bazy...")
-
-        # 3. Uruchamiamy proces skanowania w tle
+        # Wyświetlamy modalne okienko oczekiwania i uruchamiamy skaner w tle
+        self._show_scanning_dialog()
         self._start_database_load_thread()
+
+    def _show_scanning_dialog(self) -> None:
+        """Tworzy i wyświetla okno skanera ikon"""
+        dialog = Gtk.Window(
+            transient_for=self,
+            modal=True,
+            resizable=False,
+            deletable=False,
+        )
+        dialog.set_title(f"{APP_NAME_SHORT} - Skanowanie...")
+        dialog.set_default_size(320, 120)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        box.set_margin_top(24)
+        box.set_margin_bottom(24)
+        box.set_margin_start(32)
+        box.set_margin_end(32)
+        box.set_valign(Gtk.Align.CENTER)
+        box.set_halign(Gtk.Align.CENTER)
+
+        spinner = Gtk.Spinner()
+        spinner.set_size_request(32, 32)
+        spinner.start()
+        box.append(spinner)
+
+        label = Gtk.Label(label=f"<b>Trwa skanowanie... Proszę czekać...</b>", use_markup=True)
+        box.append(label)
+
+        sub_label = Gtk.Label(label=f"W tym momencie aplikacja {APP_NAME_SHORT} skanuje twój dysk w poszukiwaniu ikon.")
+        sub_label.add_css_class("dim-label")
+        box.append(sub_label)
+
+        dialog.set_child(box)
+        self._scanning_dialog = dialog
+        dialog.present()
+
+    def _close_scanning_dialog(self) -> None:
+        """Bezpiecznie zamyka okno skanowania, jeśli jest otwarte"""
+        if self._scanning_dialog is not None:
+            self._scanning_dialog.destroy()
+            self._scanning_dialog = None
 
     def _start_database_load_thread(self) -> None:
         """Uruchamia wątek pracujący w tle, zapobiegając zamrożeniu okna (freezing)."""
@@ -238,35 +275,37 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _load_database_worker(self) -> None:
         """Praca wykonywana w tle (POZA głównym wątkiem GTK)."""
-        print("thread_database_scan_begin")
         logger.debug("thread_database_scan_begin")
-        icon_db = IconDatabase(fallback_theme="Adwaita")
-        icon_db.build_database()
-
-        new_map = {ctx: icon_db.get_suggestions(ctx) for ctx in CONTEXTS}
+        try:
+            icon_db = IconDatabase(fallback_theme="Adwaita")
+            icon_db.build_database()
+            new_map = {ctx: icon_db.get_suggestions(ctx) for ctx in CONTEXTS}
+        except Exception as err:
+            logger.exception(f"thread_database_scan_failed: {err}")
+            GLib.idle_add(self._on_database_load_failed, str(err))
+            return
 
         GLib.idle_add(self._on_database_loaded, icon_db, new_map)
 
-    def _on_database_loaded(self, icon_db: IconDatabase, new_map: dict) -> bool:
+    def _on_database_loaded(self, icon_db: IconDatabase, new_map: dict[str, list[str]]) -> bool:
         """Odbiera dane z wątku i aktualizuje interfejs (WYKONYWANE W GŁÓWNYM WĄTKU)."""
         self.icon_db = icon_db
         self.suggestions_map = new_map
 
-        # Odświeżenie podpowiedzi we wszystkich wierszach
         row = self.icons_listbox.get_first_child()
         while row is not None:
             if isinstance(row, IconRow):
                 row.update_suggestions_map(new_map)
             row = row.get_next_sibling()
 
-        # Odblokowujemy interfejs
-        self.add_icon_btn.set_sensitive(True)
-        self.add_icon_btn.set_label("+ Dodaj SVG")
-        print("thread_database_scan_success")
+        self._close_scanning_dialog()
         logger.debug("thread_database_scan_success")
+        return GLib.SOURCE_REMOVE
 
-        # GLib oczekuje zwrócenia False lub GLib.SOURCE_REMOVE,
-        # w przeciwnym razie funkcja byłaby wywoływana w nieskończoność
+    def _on_database_load_failed(self, error: str) -> bool:
+        """Zamyka okno oczekiwania w razie awarii skanera, aby nie zablokować aplikacji."""
+        self._close_scanning_dialog()
+        logger.error(f"Nie udało się zbudować bazy ikon: {error}")
         return GLib.SOURCE_REMOVE
 
     def _setup_header_bar(self) -> None:
@@ -276,11 +315,13 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.about_btn = Gtk.Button(icon_name="dialog-information-symbolic")
         self.about_btn.add_css_class("flat")
+        self.about_btn.set_tooltip_text("Wyświetla informacje o programie oraz instrukcję tworzenia motywu")
         self.about_btn.connect("clicked", self.on_about_clicked)
         header_bar.pack_start(self.about_btn)
 
         self.build_btn = Gtk.Button(label="Zbuduj motyw")
         self.build_btn.add_css_class("suggested-action")
+        self.build_btn.set_tooltip_text("Generuje strukturę katalogów, tworzy plik konfiguracyjny .theme oraz odświeża pamięć podręczną ikon")
         self.build_btn.connect("clicked", self.on_button_clicked)
         header_bar.pack_end(self.build_btn)
 
@@ -432,10 +473,10 @@ class MainWindow(Gtk.ApplicationWindow):
             "Narzędzie automatyzujące proces tworzenia i budowania motywów ikon dla systemów Linux.\n\n"
             "Pozwala na łatwe mapowanie plików SVG na systemowe nazwy w standardzie Freedesktop, "
             "buduje prawidłową strukturę katalogów oraz generuje plik konfiguracyjny index.theme. \n\n"
-            "Aby stworzyć nowy motyw: \n "
-            "1. Nadaj mu nazwę oraz komentarz w lewej części okna. \n"
-            "2. Dodaj własne ikony w prawej stronie okna i wybierz jaką ikonę systemową ma twoja własna zastapić. \n"
-            "3. Gdy będziesz gotowy, kliknij zbuduj motyw a program sam dokona odpowiednich zmian nazw oraz kompilacji \n"
+            "Użytkowniku! Aby stworzyć nowy motyw: \n "
+            "1. Nadaj mu nazwę oraz opis w lewej części okna. \n"
+            "2. Dodaj własne ikony w prawej stronie okna i wybierz jakie mają zastąpić/reprezentować. \n"
+            "3. Gdy będziesz gotowy, kliknij zbuduj motyw a program sam dokona odpowiednich zmian nazw oraz wygeneruje plik konfiguracyjny \n"
             "4. Wybierz motyw w ustawieniach systemowych (np. GNOME Tweaks)"
         )
         about_dialog.set_authors([APP_AUTHOR])
