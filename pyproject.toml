@@ -30,7 +30,7 @@ version = {attr = "src.__version__"}
 
 [project]
 # === Identyfikator projektu ===
-name = "gnome-icon-pack-compiler"
+name = "gnome-icon-pack-creator"
 #wersja semver: MAJOR.MINOR.PATCH. Zmieniaj przy każdej nowej release.
 dynamic = ["version"]
 # Krótki opis pojawiający się w pip, PyPI itp.

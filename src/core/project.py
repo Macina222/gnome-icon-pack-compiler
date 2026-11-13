@@ -2,6 +2,7 @@ import configparser
 import shutil
 from pathlib import Path
 import src.config
+from src import APP_NAME_SHORT
 
 class ProjectNotFoundError(FileNotFoundError):
     pass
@@ -12,7 +13,7 @@ class InvalidThemeError(ValueError):
 def create_new_theme_project(
         name: str,
         output_dir: str | Path = src.config.DEFAULT_ICONS_DIR,
-        comments: str = "User made Icon Theme, generated using GIPC by Macina222",
+        comments: str = f"User made Icon Theme, generated using {APP_NAME_SHORT} by Macina222",
         inherits: str = "hicolor,Adwaita"
 
 ) -> Path:

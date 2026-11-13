@@ -1,4 +1,4 @@
-# GIPC (GNOME Icon Pack Compiler)
+# GIPC (GNOME Icon Pack Creator)
 
 Proste narzędzie z interfejsem graficznym (GTK 4) automatyzujące proces tworzenia i budowania motywów ikon dla środowiska GNOME oraz systemów Linux zgodnych ze specyfikacją Freedesktop.
 

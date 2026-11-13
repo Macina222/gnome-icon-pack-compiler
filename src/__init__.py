@@ -1,6 +1,6 @@
 # src/__init__.py
 # ----------------------------
-# Główny pakiet aplikacji "gnome-icon-pack-compiler".
+# Główny pakiet aplikacji "gnome-icon-pack-creator".
 #
 # Ten plik sprawia, że katalog `src/` staje się oficjalnym pakietem Pythona,
 # co umożliwia importowanie modułów z `src.core` i korzystanie z punktu wejścia
@@ -9,8 +9,8 @@
 # Wersja pakietu — aktualizuj przy każdej nowej stabilnej wersji.
 # ----------------------------
 APP_NAME_SHORT = "GIPC"
-APP_NAME_FULL = "GIPC (GNOME Icon Pack Compiler)"
-APP_ID = "com.github.mzych.gnome-icon-pack-compiler"
+APP_NAME_FULL = "GIPC (GNOME Icon Pack Crator)"
+APP_ID = "com.github.mzych.gnome-icon-pack-creator"
 APP_AUTHOR = "Macina222"
 __version__ = "1.0.0"
 
