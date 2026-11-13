@@ -678,6 +678,10 @@ class IconBuilderApp(Gtk.Application):
             win = MainWindow(application=self)
         win.present()
 
-if __name__ == "__main__":
+def main() -> int:
+    """Główny punkt wejścia aplikacji GTK 4."""
     app = IconBuilderApp()
-    sys.exit(app.run(sys.argv))
+    return app.run(sys.argv)
+
+if __name__ == "__main__":
+    sys.exit(main())
