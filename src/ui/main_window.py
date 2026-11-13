@@ -252,6 +252,13 @@ class MainWindow(Gtk.ApplicationWindow):
         self.icon_db = icon_db
         self.suggestions_map = new_map
 
+        # Odświeżenie podpowiedzi we wszystkich wierszach
+        row = self.icons_listbox.get_first_child()
+        while row is not None:
+            if isinstance(row, IconRow):
+                row.update_suggestions_map(new_map)
+            row = row.get_next_sibling()
+
         # Odblokowujemy interfejs
         self.add_icon_btn.set_sensitive(True)
         self.add_icon_btn.set_label("+ Dodaj SVG")
@@ -364,8 +371,15 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def on_new_theme_clicked(self, button: Gtk.Button) -> None:
         print("cleanup_new_theme_clicked")
+        logger.debug("cleanup_new_theme_clicked")
         self.theme_name_entry.set_text("")
         self.theme_comment_entry.set_text("")
+        self._clear_icons_list()
+
+    def _clear_icons_list(self):
+        """Usuwa wszystkie wiersze ikon po prawej stronie"""
+        while (child := self.icons_listbox.get_first_child()) is not None:
+            self.icons_listbox.remove(child)
 
     def on_load_theme_clicked(self, button: Gtk.Button) -> None:
         print("file_manager_load_theme_clicked")
@@ -396,8 +410,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.theme_comment_entry.set_text(project.comment)
 
         # Wyczyszczenie listy svg w prawym oknie
-        while (child := self.icons_listbox.get_first_child()) is not None:
-            self.icons_listbox.remove(child)
+        self._clear_icons_list()
 
         # Odtworzenie listy IconRow dla ikon z projektu
         for icon in project.icons:
@@ -496,7 +509,6 @@ class IconBuilderApp(Gtk.Application):
         if not win:
             win = MainWindow(application=self)
         win.present()
-
 
 if __name__ == "__main__":
     app = IconBuilderApp()
