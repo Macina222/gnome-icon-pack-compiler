@@ -49,6 +49,7 @@ class IconRow(Gtk.ListBoxRow):
         # 1. Wybór kontekstu (apps, status, places...)
         context_keys = list(self.suggestions_map.keys())
         self.context_dropdown = Gtk.DropDown(model=Gtk.StringList.new(context_keys))
+        self.context_dropdown.set_tooltip_text("Kategoria katalogu zgodna ze specyfikacją Freedesktop")
         self.context_dropdown.set_valign(Gtk.Align.CENTER)
         self.context_dropdown.connect("notify::selected-item", self.on_context_changed)
         row_box.append(self.context_dropdown)
@@ -56,6 +57,7 @@ class IconRow(Gtk.ListBoxRow):
         # 2. Wyszukiwalny dropdown nazwy ikony systemowej
         expression = Gtk.PropertyExpression.new(Gtk.StringObject, None, "string")
         self.name_dropdown = Gtk.DropDown()
+        self.name_dropdown.set_tooltip_text("Nazwa docelowej ikony systemowej, którą zastąpi Twój plik SVG")
         self.name_dropdown.set_expression(expression)
         self.name_dropdown.set_hexpand(True)
         self.name_dropdown.set_enable_search(True)
@@ -65,6 +67,7 @@ class IconRow(Gtk.ListBoxRow):
 
         # 3. Miniatura obecnej ikony z systemu
         self.target_preview = Gtk.Image.new_from_icon_name("image-missing")
+        self.target_preview.set_tooltip_text("Podgląd ikony z obecnego motywu systemowego")
         self.target_preview.set_pixel_size(48)
         row_box.append(self.target_preview)
 
@@ -77,6 +80,7 @@ class IconRow(Gtk.ListBoxRow):
 
         # 4. Miniatura nowego pliku SVG z dysku
         self.input_preview = Gtk.Image.new_from_file(self.filepath)
+        self.input_preview.set_tooltip_text("Podgląd nowego pliku wektorowego SVG")
         self.input_preview.set_pixel_size(48)
         row_box.append(self.input_preview)
 
@@ -85,6 +89,7 @@ class IconRow(Gtk.ListBoxRow):
             label=f"<b>{GLib.markup_escape_text(self.filename)}</b>",
             use_markup=True,
         )
+        filename_label.set_tooltip_text(f"Plik źródłowy: {self.filepath}")
         filename_label.set_halign(Gtk.Align.START)
         filename_label.set_width_chars(18)
         filename_label.set_max_width_chars(18)
@@ -93,6 +98,7 @@ class IconRow(Gtk.ListBoxRow):
 
         # 6. Przycisk usuwania wiersza
         self.btn_remove = Gtk.Button(icon_name="user-trash-symbolic")
+        self.btn_remove.set_tooltip_text("Usuwa ten wiersz z listy projektu")
         self.btn_remove.add_css_class("destructive-action")
         self.btn_remove.add_css_class("flat")
         self.btn_remove.set_valign(Gtk.Align.CENTER)
@@ -342,10 +348,12 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.btn_new_theme = Gtk.Button(label="Nowy motyw")
         self.btn_new_theme.set_hexpand(True)
+        self.btn_new_theme.set_tooltip_text("Czyści formularz oraz listę ikon i przygotowuje program pod nowy motyw")
         self.btn_new_theme.connect("clicked", self.on_new_theme_clicked)
 
         self.btn_load_theme = Gtk.Button(label="Wczytaj motyw")
         self.btn_load_theme.set_hexpand(True)
+        self.btn_load_theme.set_tooltip_text("Wczytuje istniejący katalog motywu ikon z dysku w celu jego edycji")
         self.btn_load_theme.connect("clicked", self.on_load_theme_clicked)
 
         project_actions_box.append(self.btn_new_theme)
@@ -359,7 +367,9 @@ class MainWindow(Gtk.ApplicationWindow):
 
         # Pola formularza
         self.theme_name_entry = Gtk.Entry(placeholder_text="Np. Material-Expressive")
+        self.theme_name_entry.set_tooltip_text("Nazwa motywu wyświetlana w ustawieniach GNOME (np. GNOME Tweaks)")
         self.theme_comment_entry = Gtk.Entry(placeholder_text="Opis motywu")
+        self.theme_comment_entry.set_tooltip_text("Opcjonalny opis motywu zapisywany w pliku index.theme")
 
         left_panel.append(Gtk.Label(label="Nazwa motywu:", halign=Gtk.Align.START))
         left_panel.append(self.theme_name_entry)
@@ -383,6 +393,7 @@ class MainWindow(Gtk.ApplicationWindow):
         icons_title.set_halign(Gtk.Align.START)
 
         self.add_icon_btn = Gtk.Button(label="+ Dodaj SVG")
+        self.add_icon_btn.set_tooltip_text("Otwiera okno wyboru jednego/wielu plików .svg z dysku")
         self.add_icon_btn.connect("clicked", self.on_add_svg_clicked)
 
         header_box.append(icons_title)
