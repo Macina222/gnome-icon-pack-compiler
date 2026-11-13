@@ -18,6 +18,7 @@ Zamiast ręcznie tworzyć strukturę katalogów `scalable/*`, pisać plik `index
 - **Automatyczne indeksowanie w tle:** skanowanie plików `.desktop` (`/usr/share/applications`, `~/.local/share/applications`) oraz ikon bazowych (`Adwaita`) z podziałem na konteksty Freedesktop (`apps`, `places`, `status`, `devices`, `actions`, `mimetypes`, `categories`, `emblems`, `ui`).
 - **Edycja istniejących motywów:** wczytywanie gotowych katalogów z `~/.local/share/icons/`, aktualizacja metadanych oraz automatyczne usuwanie osieroconych plików `.svg`.
 - **Walidacja i kompilacja:** sprawdzanie poprawności składni XML/SVG przed dodaniem, wykrywanie duplikatów mapowań, generowanie `index.theme` oraz odświeżanie cache poleceniem `gtk-update-icon-cache`.
+- **Wielojęzyczność (PL / EN):** automatyczne wykrywanie języka systemu, możliwość przełączania języka interfejsu w locie w pasku nagłówka oraz trwałe zapamiętywanie wyboru.
 
 ## Wymagania systemowe
 
@@ -61,19 +62,22 @@ gipc
 ```text
 gnome-icon-pack-creator/
 ├── docs/
-│   └── main_window.png        # Zrzut ekranu interfejsu
+│   ├── main_window.png        # Zrzuty ekranu interfejsu
+│   └── main_window_with_icon.png
 ├── src/
 │   ├── __init__.py            # Metadane i wersja aplikacji
 │   ├── __main__.py            # Punkt wejścia dla `python -m src`
 │   ├── config.py              # Stałe, ścieżki bazowe i słownik kontekstów Freedesktop
+│   ├── i18n.py                # Moduł internacjonalizacji, wykrywanie i zapisywanie języka
+│   ├── locales/               # Pliki tłumaczeń JSON (pl.json, en.json)
 │   ├── core/
 │   │   ├── icon_database.py   # Agregacja i sortowanie podpowiedzi nazw ikon
 │   │   ├── project.py         # Tworzenie, wczytywanie, zapis i usuwanie projektów (index.theme)
 │   │   ├── scanner.py         # Skaner plików .desktop oraz systemowych motywów ikon
 │   │   └── svg_handler.py     # Walidacja XML/SVG oraz zarządzanie plikami w scalable/
 │   └── ui/
-│       └── main_window.py     # Interfejs GTK 4, wątki skanowania w tle i okna dialogowe
-└── tests/                     # Testy jednostkowe warstwy core (unittest)
+│       └── main_window.py     # Interfejs GTK 4, przełączanie języka i okna dialogowe
+└── tests/                     # Testy jednostkowe warstwy core oraz i18n (unittest)
 ```
 
 ## Uruchamianie testów
@@ -84,9 +88,9 @@ python -m unittest discover -s tests -v
 
 ## Plan rozwoju (Roadmap)
 
-- [ ] Tłumaczenie aplikacji i wybór języka `en/pl`
+- [x] Tłumaczenie aplikacji i wybór języka `PL / EN`
 - [ ] Wybór motywu dziedziczonego (`Inherits`) z listy motywów zainstalowanych w `/usr/share/icons`.
-- [ ] Obsługa aliasów — tworzenie dowiązań symbolicznych (`symlink`) dla wielu nazw systemowych wskazujących na ten sam plik `.svg`.
+- [ ] Obsługa aliasów: tworzenie dowiązań symbolicznych (`symlink`) dla wielu nazw systemowych wskazujących na ten sam plik `.svg`.
 - [ ] Automatyczna konwersja ikon na wariant symboliczny (`-symbolic.svg` z atrybutem `currentColor`) dla górnego paska GNOME Shell.
 - [ ] Pakietowanie dla AUR (Arch/CachyOS) oraz Flatpak.
 
