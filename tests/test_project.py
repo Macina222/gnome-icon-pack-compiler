@@ -5,10 +5,13 @@ from pathlib import Path
 from src.config import CONTEXTS, DEFAULT_COMMENT, DEFAULT_INHERITS
 from src.core.project import (
     InvalidThemeError,
+    LoadedIcon,
     ProjectNotFoundError,
+    ThemeProject,
     create_new_theme_project,
     delete_theme_project,
     load_theme_project,
+    save_theme_project,
 )
 
 
@@ -93,6 +96,37 @@ class TestProject(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             delete_theme_project("../../system", self.base_dir)
+
+    def test_save_theme_project_and_clean_orphans(self):
+        source_svg = self.base_dir / "source.svg"
+        source_svg.write_text('<svg xmlns="http://www.w3.org/2000/svg"></svg>', encoding="utf-8")
+
+        theme_path = self.base_dir / "Custom-Theme"
+        project = ThemeProject(
+            path=theme_path,
+            name="Custom Theme",
+            comment="Opis testowy",
+            inherits=DEFAULT_INHERITS,
+            icons=[
+                LoadedIcon(context="apps", icon_name="firefox", filepath=source_svg),
+                LoadedIcon(context="places", icon_name="folder", filepath=source_svg),
+            ],
+        )
+
+        saved_dir, count = save_theme_project(project, update_cache=False)
+        self.assertEqual(saved_dir, theme_path)
+        self.assertEqual(count, 2)
+        self.assertTrue((theme_path / "scalable" / "apps" / "firefox.svg").is_file())
+        self.assertTrue((theme_path / "scalable" / "places" / "folder.svg").is_file())
+
+        # Ponowny zapis po usunięciu jednej ikony z listy (test SameFileError + clean_orphans)
+        reloaded = load_theme_project(theme_path)
+        reloaded.icons = [icon for icon in reloaded.icons if icon.icon_name == "firefox"]
+
+        _, count_after = save_theme_project(reloaded, clean_orphans=True, update_cache=False)
+        self.assertEqual(count_after, 1)
+        self.assertTrue((theme_path / "scalable" / "apps" / "firefox.svg").is_file())
+        self.assertFalse((theme_path / "scalable" / "places" / "folder.svg").exists())
 
 
 if __name__ == "__main__":

@@ -7,11 +7,28 @@ import gi
 gi.require_version('Gtk', '4.0')
 from gi.repository import Gtk, Gio, GLib
 
+project_root = Path(__file__).resolve().parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 from src import __version__, APP_NAME_FULL, APP_AUTHOR, APP_ID, APP_NAME_SHORT
-from src.config import CONTEXTS, DEFAULT_ICONS_DIR
-from src.core.icon_database import IconDatabase
-from src.core.project import load_theme_project, ProjectNotFoundError, InvalidThemeError, LoadedIcon
 from src.core.svg_handler import InvalidSVGError, validate_svg
+from src.config import (
+    CONTEXTS,
+    DEFAULT_COMMENT,
+    DEFAULT_ICONS_DIR,
+    DEFAULT_INHERITS,
+)
+from src.core.project import (
+    InvalidThemeError,
+    LoadedIcon,
+    ProjectNotFoundError,
+    ThemeProject,
+    load_theme_project,
+    save_theme_project,
+)
+from src.core.icon_database import IconDatabase
+
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -454,7 +471,10 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             project = load_theme_project(folder_path)
         except (ProjectNotFoundError, InvalidThemeError) as err:
-            print(f"load_theme_error: {err}")
+            self._show_alert(
+                "Błąd wczytywania folderu",
+                "Upewnij się, że ścieżka do folderu motywu jest poprawna",
+            )
             return
 
         # Uzupełnienie formularza w lewym oknie
@@ -495,11 +515,107 @@ class MainWindow(Gtk.ApplicationWindow):
 
         about_dialog.present()
 
+    def _show_alert(self, title: str, detail: str) -> None:
+        """Wyświetla natywne okno komunikatu"""
+        dialog = Gtk.AlertDialog(
+            message=title,
+            detail=detail,
+        )
+        dialog.set_buttons(["OK"])
+        dialog.show(self)
+
+    def _collect_project_from_ui(self) -> tuple[ThemeProject, list[str], list[str]]:
+        """Zbiera dane z lewego formularza oraz listy wierszy do obiektu ThemeProject.
+
+        Returns:
+            Krotka (ThemeProject, lista_duplikatów, lista_niekompletnych_wierszy).
+        """
+        name = self.theme_name_entry.get_text().strip()
+        comment = self.theme_comment_entry.get_text().strip() or DEFAULT_COMMENT
+        slug = name.replace(" ", "-")
+
+        icons: list[LoadedIcon] = []
+        seen_targets: set[tuple[str, str]] = set()
+        duplicates: list[str] = []
+        incomplete_files: list[str] = []
+
+        row = self.icons_listbox.get_first_child()
+        while row is not None:
+            if isinstance(row, IconRow):
+                loaded_icon = row.to_loaded_icon()
+                if not loaded_icon.context or not loaded_icon.icon_name:
+                    incomplete_files.append(loaded_icon.filepath.name)
+                else:
+                    target_key = (loaded_icon.context, loaded_icon.icon_name)
+                    if target_key in seen_targets:
+                        duplicates.append(f"{loaded_icon.context}/{loaded_icon.icon_name}")
+                    else:
+                        seen_targets.add(target_key)
+                    icons.append(loaded_icon)
+            row = row.get_next_sibling()
+
+        project = ThemeProject(
+            path=DEFAULT_ICONS_DIR / slug,
+            name=name,
+            comment=comment,
+            inherits=DEFAULT_INHERITS,
+            icons=icons,
+        )
+        return project, duplicates, incomplete_files
+
+
     def on_button_clicked(self, button: Gtk.Button) -> None:
-            """Akcja po kliknięciu 'Zbuduj motyw'."""
-            name = self.theme_name_entry.get_text()
-            print(f"build_theme_clicked_begin")
-            # Tutaj w przyszłości podepniemy funkcję create_icon_theme_project()
+        """Akcja po kliknięciu 'Zbuduj motyw': waliduje dane i kompiluje motyw na dysku."""
+        logger.debug("build_theme_clicked_begin")
+        project, duplicates, incomplete_files = self._collect_project_from_ui()
+
+        if not project.name:
+            self._show_alert(
+                "Brak nazwy motywu",
+                "Wpisz nazwę motywu w lewym panelu przed rozpoczęciem kompilacji",
+            )
+            return
+
+        if not project.icons and not incomplete_files:
+            self._show_alert(
+                "Lista ikon jest pusta",
+                "Dodaj przynajmniej jeden plik SVG za pomocą przycisku „+ Dodaj SVG”.",
+            )
+            return
+
+        if incomplete_files:
+            self._show_alert(
+                "Niekompletne mapowanie ikon",
+                "Następujące pliki nie mają wybranej kategorii lub nazwy docelowej:\n• "
+                + "\n• ".join(incomplete_files),
+            )
+            return
+
+        if duplicates:
+            unique_duplicates = list(dict.fromkeys(duplicates))
+            self._show_alert(
+                "Wykryto zduplikowane ikony docelowe",
+                "Kilka plików wskazuje na tę samą ikonę systemową:\n• "
+                + "\n• ".join(unique_duplicates)
+                + "\n\nZmień nazwę docelową lub usuń powtarzające się wiersze przed zapisem.",
+            )
+            return
+
+        try:
+            project_dir, saved_count = save_theme_project(project)
+        except Exception as err:
+            logger.exception("build_theme_failed")
+            self._show_alert(
+                "Nie udało się zbudować motywu",
+                f"Wystąpił błąd podczas zapisu plików na dysk:\n{err}",
+            )
+            return
+
+        logger.debug(f"build_theme_success: dir={project_dir} count={saved_count}")
+        self._show_alert(
+            "Motyw został zbudowany",
+            f"Zapisano motyw „{project.name}” ({saved_count} ikon) w katalogu:\n{project_dir}",
+        )
 
     def on_add_svg_clicked(self, button: Gtk.Button) -> None:
         """Akcja po kliknięciu 'Dodaj SVG'."""

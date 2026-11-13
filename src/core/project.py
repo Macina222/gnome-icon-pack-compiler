@@ -1,5 +1,7 @@
 import configparser
+import logging
 import shutil
+import subprocess
 from pathlib import Path
 from dataclasses import dataclass, field
 from src.config import (
@@ -8,6 +10,9 @@ from src.config import (
     DEFAULT_ICONS_DIR,
     DEFAULT_INHERITS,
 )
+from src.core.svg_handler import add_icon_to_theme
+
+logger = logging.getLogger(__name__)
 
 class ProjectNotFoundError(FileNotFoundError):
     pass
@@ -52,9 +57,13 @@ def _resolve_theme_dir(name: str, base_dir: str | Path) -> tuple[Path, Path]:
 def create_new_theme_project(
     name: str,
     output_dir: str | Path = DEFAULT_ICONS_DIR,
-    comments: str = DEFAULT_COMMENT,
+    comment: str = DEFAULT_COMMENT,
     inherits: str = DEFAULT_INHERITS,
+    comments: str | None = None,
 ) -> Path:
+    if comments is not None:
+        comment = comments
+
     _, theme_dir = _resolve_theme_dir(name, output_dir)
 
     # Tworzenie podkatalogów
@@ -68,7 +77,7 @@ def create_new_theme_project(
     directories = [f"scalable/{context}" for context in CONTEXTS]
     config["Icon Theme"] = {
         "Name": name.strip(),
-        "Comment": comments,
+        "Comment": comment,
         "Inherits": inherits,
         "Directories": ",".join(directories),
     }
@@ -176,3 +185,64 @@ def load_theme_project(theme_dir: str | Path) -> ThemeProject:
         inherits=inherits,
         icons=loaded_icons,
     )
+
+def save_theme_project(
+        project: ThemeProject,
+        clean_orphans: bool = True,
+        update_cache: bool = True,
+) -> tuple[Path, int]:
+    """Buduje lub aktualizuje motyw ikon na dysku na podstawie obiektu ThemeProject.
+
+    Args:
+        project: Obiekt projektu z metadanymi oraz listą mapowań LoadedIcon.
+        clean_orphans: Jeśli True, usuwa z katalogu scalable/ pliki .svg nieobecne w projekcie.
+        update_cache: Jeśli True, wywołuje gtk-update-icon-cache dla katalogu motywu.
+
+    Returns:
+        Krotka (ścieżka_katalogu_motywu, liczba_zapisanych_ikon).
+    """
+    project_dir = create_new_theme_project(
+        name=project.name,
+        output_dir=project.path.parent,
+        comment=project.comment,
+        inherits=project.inherits,
+    )
+
+    expected_files: set[Path] = set()
+    saved_count = 0
+
+    for icon in project.icons:
+        if not icon.context or not icon.icon_name:
+            continue
+        dest_path = add_icon_to_theme(
+            project_dir=project_dir,
+            context=icon.context,
+            source_svg=icon.filepath,
+            icon_name=icon.icon_name,
+        )
+        expected_files.add(dest_path.resolve())
+        saved_count += 1
+
+    if clean_orphans:
+        scalable_dir = project_dir / "scalable"
+        if scalable_dir.is_dir():
+            for existing_svg in scalable_dir.glob("*/*.svg"):
+                if existing_svg.resolve() not in expected_files:
+                    logger.debug(f"save_theme_project: removing orphan svg={existing_svg}")
+                    existing_svg.unlink()
+
+    if update_cache:
+        try:
+            subprocess.run(
+                ["gtk-update-icon-cache", "-f", "-t", str(project_dir)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            logger.debug(f"save_theme_project: icon cache updated for {project_dir}")
+        except FileNotFoundError:
+            logger.warning("gtk-update-icon-cache nie jest zainstalowane w systemie — pomijam.")
+        except subprocess.CalledProcessError as err:
+            logger.warning(f"gtk-update-icon-cache zakończyło się błędem: {err.stderr.strip()}")
+
+    return project_dir, saved_count
